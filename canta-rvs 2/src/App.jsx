@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import {
   subscribeReservaciones,
@@ -133,6 +134,11 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [tab, setTab] = useState("lista");
   const [copied, setCopied] = useState(false);
+  const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState(false);
+
+  const PIN_CORRECTO = "1209";
 
   const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "" });
   const [errors, setErrors] = useState({});
@@ -166,10 +172,24 @@ export default function App() {
     const e = {};
     if (!form.fecha) e.fecha = "Requerido";
     if (!form.nombre.trim()) e.nombre = "Requerido";
-    if (!form.personas || isNaN(form.personas) || parseInt(form.personas) < 1) e.personas = "Número válido";
+    if (!form.personas || isNaN(form.personas) || parseInt(form.personas) < 1) e.personas = "Numero valido";
     if (!form.iniciales.trim()) e.iniciales = "Requerido";
-    if (!form.rol) e.rol = "Selecciona una opción";
+    if (!form.rol) e.rol = "Selecciona una opcion";
+    const nombreNorm = form.nombre.trim().toLowerCase();
+    const duplicado = reservaciones.find(r => r.nombre.toLowerCase() === nombreNorm && r.fecha === form.fecha);
+    if (duplicado) e.nombre = `"${duplicado.nombre}" ya esta en la lista para ese dia`;
     return e;
+  }
+
+  function handlePinSubmit() {
+    if (pinInput === PIN_CORRECTO) {
+      setPinDesbloqueado(true);
+      setPinError(false);
+      setPinInput("");
+    } else {
+      setPinError(true);
+      setPinInput("");
+    }
   }
 
   async function handleSubmit() {
@@ -649,6 +669,36 @@ export default function App() {
       {/* ── TAB REPORTES ── */}
       {tab === "reportes" && (
         <>
+          {/* PIN GATE */}
+          {!pinDesbloqueado ? (
+            <div style={{ padding: "60px 32px 32px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>🔐</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6, textAlign: "center" }}>Acceso restringido</div>
+              <div style={{ fontSize: 13, color: "#555", marginBottom: 32, textAlign: "center" }}>Ingresa el PIN para ver los cortes semanales</div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 12, justifyContent: "center" }}>
+                {[0,1,2,3].map(i => (
+                  <div key={i} style={{ width: 18, height: 18, borderRadius: "50%", background: pinInput.length > i ? "#c9a84c" : "#2a2a2e", transition: "background 0.15s" }} />
+                ))}
+              </div>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={pinInput}
+                onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
+                onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
+                placeholder="••••"
+                style={{ width: "100%", maxWidth: 200, textAlign: "center", background: "#16161a", border: `1px solid ${pinError ? "#c94c4c" : "#2a2a2e"}`, borderRadius: 12, padding: "14px", color: "#f0ede8", fontSize: 24, letterSpacing: 8, outline: "none", marginBottom: 8 }}
+              />
+              {pinError && <div style={{ color: "#c94c4c", fontSize: 12, marginBottom: 12 }}>PIN incorrecto, intenta de nuevo</div>}
+              <button
+                onClick={handlePinSubmit}
+                style={{ marginTop: 8, width: "100%", maxWidth: 200, padding: "13px", background: "#c9a84c", color: "#0d0d0f", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                Entrar
+              </button>
+            </div>
+          ) : (
+          <>
           {view !== "reporte_detalle" && (
             <div style={{ padding: "18px 16px" }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Cortes Semanales</div>
@@ -753,12 +803,14 @@ export default function App() {
             );
           })()}
         </>
+          )}
+        </>
       )}
 
       {/* Bottom Nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0d0d0f", borderTop: "1px solid #1e1e22", display: "flex", padding: "10px 0 20px" }}>
         {[{ id: "lista", label: "Reservas", icon: "📋" }, { id: "reportes", label: "Cortes", icon: "📊" }].map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); setView("list"); }}
+          <button key={t.id} onClick={() => { setTab(t.id); setView("list"); if (t.id === "lista") setPinDesbloqueado(false); }}
             style={{ flex: 1, background: "none", border: "none", color: tab === t.id ? "#c9a84c" : "#444", fontSize: 11, fontWeight: tab === t.id ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
             <span style={{ fontSize: 20 }}>{t.icon}</span>
             {t.label}
