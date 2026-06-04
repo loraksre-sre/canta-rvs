@@ -11,12 +11,14 @@ const ROLES = [
   { id: "socio", label: "Socio", color: "#c9a84c" },
   { id: "rp", label: "RP", color: "#7c6fff" },
   { id: "team", label: "Team Canta", color: "#4fc9a8" },
+  { id: "instagram", label: "Instagram", color: "#e1306c" },
 ];
 
 const ROLE_COLORS = {
-  socio: { bg: "#c9a84c22", border: "#c9a84c", text: "#c9a84c" },
-  rp:    { bg: "#7c6fff22", border: "#7c6fff", text: "#7c6fff" },
-  team:  { bg: "#4fc9a822", border: "#4fc9a8", text: "#4fc9a8" },
+  socio:     { bg: "#c9a84c22", border: "#c9a84c", text: "#c9a84c" },
+  rp:        { bg: "#7c6fff22", border: "#7c6fff", text: "#7c6fff" },
+  team:      { bg: "#4fc9a822", border: "#4fc9a8", text: "#4fc9a8" },
+  instagram: { bg: "#e1306c22", border: "#e1306c", text: "#e1306c" },
 };
 
 const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
@@ -89,7 +91,7 @@ function RoleBar({ reservaciones }) {
 }
 
 function buildWhatsAppText(rep) {
-  const roleEmoji = { socio: "🥂", rp: "💜", team: "🟢" };
+  const roleEmoji = { socio: "🥂", rp: "💜", team: "🟢", instagram: "📸" };
   const lines = [];
   lines.push(`📊 *CORTE SEMANAL — ${rep.label}*`);
   lines.push(`_Generado el ${new Date(rep.generadoEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}_`);
@@ -348,7 +350,7 @@ export default function App() {
 
       ctx.fillStyle = "#555"; ctx.font = "10px sans-serif";
       ctx.fillText("POR CATEGORÍA", 32, y); y += 18;
-      const roleColors = { socio: "#c9a84c", rp: "#7c6fff", team: "#4fc9a8" };
+      const roleColors = { socio: "#c9a84c", rp: "#7c6fff", team: "#4fc9a8", instagram: "#e1306c" };
       roleLines.forEach(role => {
         const d = rep.byRole[role.id];
         ctx.fillStyle = roleColors[role.id] || "#888"; ctx.font = "bold 13px sans-serif";
@@ -610,12 +612,12 @@ export default function App() {
               ))}
               <div style={{ marginBottom: 26 }}>
                 <label style={{ fontSize: 10, letterSpacing: 1, color: "#777", textTransform: "uppercase", display: "block", marginBottom: 10 }}>Registrado por</label>
-                <div style={{ display: "flex", gap: 9 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
                   {ROLES.map(r => {
                     const active = form.rol === r.id;
                     return (
                       <button key={r.id} onClick={() => { setForm(f => ({ ...f, rol: r.id })); setErrors(err => ({ ...err, rol: null })); }}
-                        style={{ flex: 1, padding: "13px 6px", borderRadius: 12, border: `1.5px solid ${active ? r.color : "#2a2a2e"}`, background: active ? r.color + "22" : "#16161a", color: active ? r.color : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        style={{ flex: "1 1 calc(50% - 5px)", padding: "13px 6px", borderRadius: 12, border: `1.5px solid ${active ? r.color : "#2a2a2e"}`, background: active ? r.color + "22" : "#16161a", color: active ? r.color : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                         {r.label}
                       </button>
                     );
