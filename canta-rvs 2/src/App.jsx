@@ -813,44 +813,16 @@ export default function App() {
       {/* ── TAB REPORTES ── */}
       {tab === "reportes" && (
         <>
-          {/* PIN GATE */}
-          {!pinDesbloqueado ? (
-            <div style={{ padding: "60px 32px 32px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <div style={{ fontSize: 40, marginBottom: 16 }}>🔐</div>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6, textAlign: "center" }}>Acceso restringido</div>
-              <div style={{ fontSize: 13, color: "#9a7878", marginBottom: 32, textAlign: "center" }}>Ingresa el PIN para ver los cortes semanales</div>
-              <div style={{ display: "flex", gap: 10, marginBottom: 12, justifyContent: "center" }}>
-                {[0,1,2,3].map(i => (
-                  <div key={i} style={{ width: 18, height: 18, borderRadius: "50%", background: pinInput.length > i ? "#c9a84c" : "#3a2020", transition: "background 0.15s" }} />
-                ))}
-              </div>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                value={pinInput}
-                onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
-                onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
-                placeholder="••••"
-                style={{ width: "100%", maxWidth: 200, textAlign: "center", background: "#1e1210", border: `1px solid ${pinError ? "#c94c4c" : "#3a2020"}`, borderRadius: 12, padding: "14px", color: "#f5e8e0", fontSize: 24, letterSpacing: 8, outline: "none", marginBottom: 8 }}
-              />
-              {pinError && <div style={{ color: "#c94c4c", fontSize: 12, marginBottom: 12 }}>PIN incorrecto, intenta de nuevo</div>}
-              <button
-                onClick={handlePinSubmit}
-                style={{ marginTop: 8, width: "100%", maxWidth: 200, padding: "13px", background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                Entrar
-              </button>
-            </div>
-          ) : (
-          <>
           {view !== "reporte_detalle" && (
             <div style={{ padding: "18px 16px" }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Cortes Semanales</div>
               <div style={{ fontSize: 12, color: "#9a7878", marginBottom: 20 }}>Solo incluye reservas marcadas como llegaron</div>
-              <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: esSabado ? "#c9a84c" : "#1e1210", color: esSabado ? "#1a0a0a" : "#888", border: esSabado ? "none" : "1px solid #3a2020", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <span>{generando ? "Generando..." : "📊 Generar corte de esta semana"}</span>
-                {esSabado && <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>· Hoy es sábado ✓</span>}
-              </button>
+              {puede.generarCorte && (
+                <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: esSabado ? "#c9a84c" : "#1e1210", color: esSabado ? "#1a0a0a" : "#9a7878", border: esSabado ? "none" : "1px solid #3a2020", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <span>{generando ? "Generando..." : "📊 Generar corte de esta semana"}</span>
+                  {esSabado && <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>· Hoy es sábado ✓</span>}
+                </button>
+              )}
               {loading ? (
                 <div style={{ textAlign: "center", color: "#8a6868", padding: 30, fontSize: 13 }}>Cargando...</div>
               ) : reportes.length === 0 ? (
@@ -946,7 +918,6 @@ export default function App() {
               </div>
             );
           })()}
-          </>
         </>
       )}
 
