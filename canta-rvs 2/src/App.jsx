@@ -135,11 +135,23 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [tab, setTab] = useState("lista");
   const [copied, setCopied] = useState(false);
-  const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
+
+  // ── Sistema de perfiles ───────────────────────────────────────
+  const [perfil, setPerfil] = useState(null);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
 
-  const PIN_CORRECTO = "1209";
+  const PERFILES = { "1029": "staff", "2938": "supervisor", "3847": "admin" };
+  const puede = {
+    agregarReserva:  perfil !== null,
+    eliminarPropia:  perfil !== null,
+    eliminarAjena:   perfil === "supervisor" || perfil === "admin",
+    checkAsistencia: perfil === "supervisor" || perfil === "admin",
+    verReportes:     perfil === "supervisor" || perfil === "admin",
+    generarCorte:    perfil === "admin",
+  };
+  const PERFIL_LABEL = { staff: "👤 Staff", supervisor: "👥 Supervisor", admin: "👑 Admin" };
+  const PERFIL_COLOR = { staff: "#c9a84c", supervisor: "#7c6fff", admin: "#e1306c" };
 
   const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "" });
   const [errors, setErrors] = useState({});
@@ -159,7 +171,23 @@ export default function App() {
   }
 
   // ── Toggle llegó ─────────────────────────────────────────────
+  function isCheckBlocked(r) {
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    const hour = now.getHours();
+    // Bloqueado si la reserva es de un día anterior Y ya pasaron las 10am de hoy
+    return r.fecha < today && hour >= 10;
+  }
+
   async function toggleLlego(r) {
+    if (!puede.checkAsistencia) {
+      showToast("No tienes permiso para marcar asistencia", "error");
+      return;
+    }
+    if (isCheckBlocked(r)) {
+      showToast("No se puede modificar después de las 10am del día siguiente", "error");
+      return;
+    }
     const updated = { ...r, llego: !r.llego };
     try {
       await saveReservacion(updated);
@@ -183,8 +211,9 @@ export default function App() {
   }
 
   function handlePinSubmit() {
-    if (pinInput === PIN_CORRECTO) {
-      setPinDesbloqueado(true);
+    const p = PERFILES[pinInput];
+    if (p) {
+      setPerfil(p);
       setPinError(false);
       setPinInput("");
     } else {
@@ -219,7 +248,16 @@ export default function App() {
     setSaving(false);
   }
 
-  async function handleDelete(id) {
+  async function handleDelete(id, creadoPor) {
+    const esPropia = creadoPor === form.iniciales.trim().toUpperCase() || creadoPor === undefined;
+    if (!puede.eliminarAjena && !esPropia) {
+      showToast("Solo puedes eliminar tus propias reservas", "error");
+      return;
+    }
+    if (!puede.eliminarPropia) {
+      showToast("No tienes permiso para eliminar reservas", "error");
+      return;
+    }
     try {
       await deleteReservacion(id);
       setSelected(null);
@@ -426,6 +464,51 @@ export default function App() {
   const llegaron = filteredBase.filter(r => r.llego).length;
   const esSabado = isSaturday();
 
+  // ── Login gate ───────────────────────────────────────────────
+  if (!perfil) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#1a0a0a", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet" />
+        {/* Logo */}
+        <div style={{ background: "#d4a0a0", borderRadius: 20, padding: "20px 24px", marginBottom: 32, width: "100%", maxWidth: 320, textAlign: "center" }}>
+          <img src="https://cantacorazon.com/assets/images/logo-canta-corazn.png" alt="Canta Corazón" style={{ height: 64, objectFit: "contain" }} />
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#7a3030", textTransform: "uppercase", marginTop: 8 }}>Guanajuato · Reservaciones</div>
+        </div>
+
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#f5e8e0", marginBottom: 6, textAlign: "center" }}>Bienvenida</div>
+        <div style={{ fontSize: 12, color: "#9a7878", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
+
+        {/* Dots */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+          {[0,1,2,3].map(i => (
+            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: pinInput.length > i ? "#c9a84c" : "#3a2020", border: `1px solid ${pinInput.length > i ? "#c9a84c" : "#4a2828"}`, transition: "background 0.15s" }} />
+          ))}
+        </div>
+
+        <input
+          type="password" inputMode="numeric" maxLength={4} value={pinInput}
+          onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
+          onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
+          placeholder="••••"
+          style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#1e1210", border: `1px solid ${pinError ? "#c94c4c" : "#3a2020"}`, borderRadius: 12, padding: "14px", color: "#f5e8e0", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
+        />
+        {pinError && <div style={{ color: "#c94c4c", fontSize: 12, marginBottom: 12, fontStyle: "italic" }}>PIN incorrecto</div>}
+
+        <button onClick={handlePinSubmit}
+          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+          Entrar
+        </button>
+
+        {/* Perfiles hint */}
+        <div style={{ marginTop: 40, display: "flex", gap: 16, opacity: 0.4 }}>
+          {["Staff","Supervisor","Admin"].map(p => (
+            <div key={p} style={{ fontSize: 10, color: "#9a7878", letterSpacing: 1, textTransform: "uppercase" }}>{p}</div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#1a0a0a", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", paddingBottom: 88 }}>
 
@@ -438,8 +521,16 @@ export default function App() {
             alt="Canta Corazón"
             style={{ height: 48, width: "auto", objectFit: "contain" }}
           />
-          <div style={{ fontSize: 9, letterSpacing: 3, color: "#7a3030", textTransform: "uppercase", textAlign: "right", lineHeight: 1.6 }}>
-            Guanajuato<br />Reservaciones
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 9, letterSpacing: 3, color: "#7a3030", textTransform: "uppercase", lineHeight: 1.6 }}>
+              Guanajuato · Rvs
+            </div>
+            <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: PERFIL_COLOR[perfil], background: PERFIL_COLOR[perfil] + "22", border: "1px solid " + PERFIL_COLOR[perfil] + "66", borderRadius: 20, padding: "2px 10px" }}>
+                {PERFIL_LABEL[perfil]}
+              </div>
+              <button onClick={() => { setPerfil(null); setPinInput(""); }} style={{ background: "none", border: "none", fontSize: 10, color: "#9a7878", cursor: "pointer", padding: 0 }}>Salir</button>
+            </div>
           </div>
         </div>
 
@@ -479,7 +570,7 @@ export default function App() {
             <div style={{ padding: "18px 16px" }}>
 
               {/* Banner sábado */}
-              {esSabado && (
+              {esSabado && puede.generarCorte && (
                 <div style={{ background: "linear-gradient(135deg, #c9a84c22, #7c6fff22)", border: "1px solid #c9a84c55", borderRadius: 14, padding: "14px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ fontSize: 26 }}>📊</div>
                   <div style={{ flex: 1 }}>
@@ -582,15 +673,19 @@ export default function App() {
                                 {/* Checkbox llegó */}
                                 <button
                                   onClick={() => toggleLlego(r)}
+                                  disabled={isCheckBlocked(r)}
                                   style={{
                                     width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                                    border: `2px solid ${r.llego ? "#4fc9a8" : "#3a2020"}`,
-                                    background: r.llego ? "#4fc9a822" : "transparent",
-                                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                                    fontSize: 14, color: "#4a9e6a", transition: "all 0.15s",
+                                    border: `2px solid ${r.llego ? "#4a9e6a" : isCheckBlocked(r) ? "#3a2020" : "#3a2020"}`,
+                                    background: r.llego ? "#4a9e6a22" : isCheckBlocked(r) ? "#2a1818" : "transparent",
+                                    cursor: isCheckBlocked(r) ? "not-allowed" : "pointer",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: isCheckBlocked(r) ? 11 : 14,
+                                    color: "#4a9e6a", transition: "all 0.15s",
+                                    opacity: isCheckBlocked(r) && !r.llego ? 0.4 : 1,
                                   }}
                                 >
-                                  {r.llego ? "✓" : ""}
+                                  {r.llego ? "✓" : isCheckBlocked(r) ? "🔒" : ""}
                                 </button>
 
                                 {/* Card */}
@@ -705,7 +800,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id); }}
+                <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id, r.iniciales); }}
                   style={{ width: "100%", padding: "13px", background: "transparent", color: "#c94c4c", border: "1px solid #c94c4c44", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                   Eliminar reservación
                 </button>
@@ -851,20 +946,24 @@ export default function App() {
               </div>
             );
           })()}
-        </>
-          )}
+          </>
         </>
       )}
 
       {/* Bottom Nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#1a0a0a", borderTop: "1px solid #2a1818", display: "flex", padding: "10px 0 20px" }}>
-        {[{ id: "lista", label: "Reservas", icon: "📋" }, { id: "reportes", label: "Cortes", icon: "📊" }].map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); setView("list"); if (t.id === "lista") setPinDesbloqueado(false); }}
-            style={{ flex: 1, background: "none", border: "none", color: tab === t.id ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === t.id ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <span style={{ fontSize: 20 }}>{t.icon}</span>
-            {t.label}
+        <button onClick={() => { setTab("lista"); setView("list"); }}
+          style={{ flex: 1, background: "none", border: "none", color: tab === "lista" ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === "lista" ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <span style={{ fontSize: 20 }}>📋</span>
+          Reservas
+        </button>
+        {puede.verReportes && (
+          <button onClick={() => { setTab("reportes"); setView("list"); }}
+            style={{ flex: 1, background: "none", border: "none", color: tab === "reportes" ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === "reportes" ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <span style={{ fontSize: 20 }}>📊</span>
+            Cortes
           </button>
-        ))}
+        )}
       </div>
     </div>
   );
