@@ -467,21 +467,21 @@ export default function App() {
   // ── Login gate ───────────────────────────────────────────────
   if (!perfil) {
     return (
-      <div style={{ minHeight: "100vh", background: "#1a0a0a", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+      <div style={{ minHeight: "100vh", background: "#d4a0a0", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
         <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet" />
         {/* Logo */}
-        <div style={{ background: "#d4a0a0", borderRadius: 20, padding: "20px 24px", marginBottom: 32, width: "100%", maxWidth: 320, textAlign: "center" }}>
+        <div style={{ background: "#c08080", borderRadius: 20, padding: "20px 24px", marginBottom: 32, width: "100%", maxWidth: 320, textAlign: "center", boxShadow: "0 4px 20px #7a303033" }}>
           <img src="https://cantacorazon.com/assets/images/logo-canta-corazn.png" alt="Canta Corazón" style={{ height: 64, objectFit: "contain" }} />
-          <div style={{ fontSize: 9, letterSpacing: 3, color: "#7a3030", textTransform: "uppercase", marginTop: 8 }}>Guanajuato · Reservaciones</div>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#5a1e1e", textTransform: "uppercase", marginTop: 8 }}>Guanajuato · Reservaciones</div>
         </div>
 
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#f5e8e0", marginBottom: 6, textAlign: "center" }}>Bienvenida</div>
-        <div style={{ fontSize: 12, color: "#9a7878", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Bienvenida</div>
+        <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
 
         {/* Dots */}
         <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
           {[0,1,2,3].map(i => (
-            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: pinInput.length > i ? "#c9a84c" : "#3a2020", border: `1px solid ${pinInput.length > i ? "#c9a84c" : "#4a2828"}`, transition: "background 0.15s" }} />
+            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: pinInput.length > i ? "#7a3030" : "#b87878", border: `1px solid ${pinInput.length > i ? "#7a3030" : "#c08080"}`, transition: "background 0.15s" }} />
           ))}
         </div>
 
@@ -490,19 +490,19 @@ export default function App() {
           onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
           onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
           placeholder="••••"
-          style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#1e1210", border: `1px solid ${pinError ? "#c94c4c" : "#3a2020"}`, borderRadius: 12, padding: "14px", color: "#f5e8e0", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
+          style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#c98e8e", border: `1px solid ${pinError ? "#8b1a1a" : "#b87878"}`, borderRadius: 12, padding: "14px", color: "#3d1010", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
         />
-        {pinError && <div style={{ color: "#c94c4c", fontSize: 12, marginBottom: 12, fontStyle: "italic" }}>PIN incorrecto</div>}
+        {pinError && <div style={{ color: "#5a1e1e", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>PIN incorrecto</div>}
 
         <button onClick={handlePinSubmit}
-          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px #7a303044" }}>
           Entrar
         </button>
 
         {/* Perfiles hint */}
-        <div style={{ marginTop: 40, display: "flex", gap: 16, opacity: 0.4 }}>
+        <div style={{ marginTop: 40, display: "flex", gap: 16, opacity: 0.5 }}>
           {["Staff","Supervisor","Admin"].map(p => (
-            <div key={p} style={{ fontSize: 10, color: "#9a7878", letterSpacing: 1, textTransform: "uppercase" }}>{p}</div>
+            <div key={p} style={{ fontSize: 10, color: "#5a1e1e", letterSpacing: 1, textTransform: "uppercase" }}>{p}</div>
           ))}
         </div>
       </div>
