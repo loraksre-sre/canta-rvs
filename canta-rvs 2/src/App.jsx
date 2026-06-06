@@ -429,17 +429,40 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: "#0d0d0f", fontFamily: "'DM Sans', sans-serif", color: "#f0ede8", paddingBottom: 88 }}>
 
-      {/* Header */}
-      <div style={{ padding: "22px 20px 14px", borderBottom: "1px solid #1e1e22", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "#0d0d0f", zIndex: 10 }}>
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: 3, color: "#555", textTransform: "uppercase" }}>Canta Corazón Gto</div>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 21, fontWeight: 700, lineHeight: 1.2 }}>Rvs</div>
+      {/* ── Header con logo + botón nueva reserva ── */}
+      <div style={{ background: "#d4a0a0", borderBottom: "1px solid #b87878" }}>
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px 10px" }}>
+          <img
+            src="https://cantacorazon.com/assets/images/logo-canta-corazn.png"
+            alt="Canta Corazón"
+            style={{ height: 48, width: "auto", objectFit: "contain" }}
+          />
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#7a3030", textTransform: "uppercase", textAlign: "right", lineHeight: 1.6 }}>
+            Guanajuato<br />Reservaciones
+          </div>
         </div>
+
+        {/* Botón nueva reserva — solo en tab lista, vista list */}
         {tab === "lista" && view === "list" && (
-          <button onClick={() => { setView("form"); setErrors({}); }} style={{ background: "#c9a84c", color: "#0d0d0f", border: "none", borderRadius: 10, padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            + Nueva
-          </button>
+          <div style={{ padding: "10px 20px 16px" }}>
+            <button
+              onClick={() => { setView("form"); setErrors({}); }}
+              style={{
+                width: "100%", padding: "13px",
+                background: "#7a3030", color: "#fdf0f0",
+                border: "none", borderRadius: 12,
+                fontSize: 14, fontWeight: 700, cursor: "pointer",
+                letterSpacing: 0.5,
+                boxShadow: "0 2px 8px #7a303044",
+              }}>
+              + Nueva Reservación
+            </button>
+          </div>
         )}
+
+        {/* Línea decorativa inferior */}
+        <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #b87878, transparent)" }} />
       </div>
 
       {/* Toast */}
