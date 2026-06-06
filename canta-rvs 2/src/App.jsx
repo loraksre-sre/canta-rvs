@@ -6,23 +6,23 @@ import {
 
 // ── Canta Corazón brand tokens (light / rose / warm cream) ────
 const C = {
-  bg:       "#d4a0a0",       // rosa palo principal
-  bgCard:   "#c98e8e",       // tarjetas ligeramente más oscuras
-  bgInput:  "#e8bfbf",       // inputs más claros
-  border:   "#b87878",       // bordes
-  borderDk: "#9a6060",       // borde más marcado
-  rose:     "#7a3030",       // acento vino/oscuro
-  roseLt:   "#e8bfbf",       // rosa claro
-  roseDk:   "#5a1e1e",       // vino profundo
-  wine:     "#3d1010",       // texto principal oscuro
-  cream:    "#3d1010",       // texto principal
-  muted:    "#7a4a4a",       // texto secundario
-  faint:    "#c08080",       // fondo sutil
+  bg:       "#faf5f0",       // fondo crema cálido
+  bgCard:   "#f5ede6",       // tarjetas ligeramente más oscuras
+  bgInput:  "#fff8f4",       // inputs casi blanco
+  border:   "#e2cfc6",       // bordes beige-rosa
+  borderDk: "#c9b0a4",       // borde más marcado
+  rose:     "#c4787a",       // rosa palo principal
+  roseLt:   "#e8a8a8",       // rosa claro
+  roseDk:   "#8f4a4c",       // rosa oscuro / vino
+  wine:     "#6b2d2e",       // vino profundo
+  cream:    "#3d2020",       // texto principal (café oscuro)
+  muted:    "#9a7870",       // texto secundario
+  faint:    "#ede0d8",       // fondo sutil
   gold:     "#b8905a",       // dorado cálido
   goldDim:  "#d4b08a",       // dorado claro
-  green:    "#4a7a5a",       // verde suave
-  red:      "#8b1a1a",       // error
-  white:    "#ddb0b0",       // "blanco" cálido rosado
+  green:    "#6b9e7a",       // verde suave
+  red:      "#b84040",       // error
+  white:    "#fffaf7",       // blanco cálido
 };
 
 const ROLES = [
@@ -311,15 +311,13 @@ export default function App() {
 
       {/* ── Header ── */}
       <div style={{ background:C.white, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:10, boxShadow:"0 2px 12px #c4787a18" }}>
-        <div style={{ padding:"12px 20px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <img
-              src="https://cantacorazon.com/assets/images/logo-canta-corazn.png"
-              alt="Canta Corazón"
-              style={{ height:44, width:"auto", objectFit:"contain" }}
-            />
-            <div style={{ fontSize:9, letterSpacing:3, color:C.roseDk, textTransform:"uppercase", lineHeight:1.4 }}>
-              Guanajuato<br/>Reservaciones
+        <div style={{ padding:"16px 20px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div>
+            <div style={{ fontFamily:"'Playfair Display',serif", fontSize:22, fontWeight:700, fontStyle:"italic", color:C.wine, lineHeight:1.1 }}>
+              Canta Corazón
+            </div>
+            <div style={{ fontSize:9, letterSpacing:4, color:C.roseLt, textTransform:"uppercase", marginTop:2 }}>
+              Guanajuato · Reservaciones
             </div>
           </div>
           {tab==="lista" && view==="list" && (
