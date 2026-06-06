@@ -10,7 +10,7 @@ import {
 const ROLES = [
   { id: "socio", label: "Socio", color: "#c9a84c" },
   { id: "rp", label: "RP", color: "#7c6fff" },
-  { id: "team", label: "Team Canta", color: "#4a9e6a" },
+  { id: "team", label: "Team Canta", color: "#4fc9a8" },
   { id: "instagram", label: "Instagram", color: "#e1306c" },
 ];
 
@@ -58,9 +58,9 @@ function weekLabel(s, e) { return `${formatDate(s)} – ${formatDate(e)}`; }
 
 function StatCard({ val, label, color = "#c9a84c" }) {
   return (
-    <div style={{ background: "#1e1210", borderRadius: 12, padding: "12px 10px", textAlign: "center", border: "1px solid #2a1818" }}>
+    <div style={{ background: "#16161a", borderRadius: 12, padding: "12px 10px", textAlign: "center", border: "1px solid #1e1e22" }}>
       <div style={{ fontSize: 22, fontWeight: 600, color }}>{val}</div>
-      <div style={{ fontSize: 11, color: "#9a7878", marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{label}</div>
     </div>
   );
 }
@@ -78,9 +78,9 @@ function RoleBar({ reservaciones }) {
           <div key={role.id} style={{ marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}>
               <span style={{ color: role.color, fontWeight: 600 }}>{role.label}</span>
-              <span style={{ color: "#a07878" }}>{items.length} reservas · {personas} personas</span>
+              <span style={{ color: "#666" }}>{items.length} reservas · {personas} personas</span>
             </div>
-            <div style={{ background: "#2a1818", borderRadius: 4, height: 6, overflow: "hidden" }}>
+            <div style={{ background: "#1e1e22", borderRadius: 4, height: 6, overflow: "hidden" }}>
               <div style={{ width: `${pct}%`, background: role.color, height: "100%", borderRadius: 4, transition: "width 0.6s" }} />
             </div>
           </div>
@@ -135,23 +135,11 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [tab, setTab] = useState("lista");
   const [copied, setCopied] = useState(false);
-
-  // ── Sistema de perfiles ───────────────────────────────────────
-  const [perfil, setPerfil] = useState(null);
+  const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
 
-  const PERFILES = { "1029": "staff", "2938": "supervisor", "3847": "admin" };
-  const puede = {
-    agregarReserva:  perfil !== null,
-    eliminarPropia:  perfil !== null,
-    eliminarAjena:   perfil === "supervisor" || perfil === "admin",
-    checkAsistencia: perfil === "supervisor" || perfil === "admin",
-    verReportes:     perfil === "supervisor" || perfil === "admin",
-    generarCorte:    perfil === "admin",
-  };
-  const PERFIL_LABEL = { staff: "👤 Staff", supervisor: "👥 Supervisor", admin: "👑 Admin" };
-  const PERFIL_COLOR = { staff: "#c9a84c", supervisor: "#7c6fff", admin: "#e1306c" };
+  const PIN_CORRECTO = "1209";
 
   const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "" });
   const [errors, setErrors] = useState({});
@@ -171,23 +159,7 @@ export default function App() {
   }
 
   // ── Toggle llegó ─────────────────────────────────────────────
-  function isCheckBlocked(r) {
-    const now = new Date();
-    const today = now.toISOString().split("T")[0];
-    const hour = now.getHours();
-    // Bloqueado si la reserva es de un día anterior Y ya pasaron las 10am de hoy
-    return r.fecha < today && hour >= 10;
-  }
-
   async function toggleLlego(r) {
-    if (!puede.checkAsistencia) {
-      showToast("No tienes permiso para marcar asistencia", "error");
-      return;
-    }
-    if (isCheckBlocked(r)) {
-      showToast("No se puede modificar después de las 10am del día siguiente", "error");
-      return;
-    }
     const updated = { ...r, llego: !r.llego };
     try {
       await saveReservacion(updated);
@@ -211,9 +183,8 @@ export default function App() {
   }
 
   function handlePinSubmit() {
-    const p = PERFILES[pinInput];
-    if (p) {
-      setPerfil(p);
+    if (pinInput === PIN_CORRECTO) {
+      setPinDesbloqueado(true);
       setPinError(false);
       setPinInput("");
     } else {
@@ -248,16 +219,7 @@ export default function App() {
     setSaving(false);
   }
 
-  async function handleDelete(id, creadoPor) {
-    const esPropia = creadoPor === form.iniciales.trim().toUpperCase() || creadoPor === undefined;
-    if (!puede.eliminarAjena && !esPropia) {
-      showToast("Solo puedes eliminar tus propias reservas", "error");
-      return;
-    }
-    if (!puede.eliminarPropia) {
-      showToast("No tienes permiso para eliminar reservas", "error");
-      return;
-    }
+  async function handleDelete(id) {
     try {
       await deleteReservacion(id);
       setSelected(null);
@@ -364,18 +326,18 @@ export default function App() {
       const ctx = canvas.getContext("2d");
       ctx.scale(dpr, dpr);
 
-      ctx.fillStyle = "#1a0a0a"; ctx.fillRect(0, 0, W, totalH);
+      ctx.fillStyle = "#0d0d0f"; ctx.fillRect(0, 0, W, totalH);
       ctx.fillStyle = "#c9a84c"; ctx.fillRect(0, 0, W, 5);
 
       let y = 36;
       ctx.fillStyle = "#555"; ctx.font = "11px sans-serif";
       ctx.fillText("CANTA CORAZÓN GTO · CORTE SEMANAL", 32, y); y += 24;
-      ctx.fillStyle = "#f5e8e0"; ctx.font = "bold 26px serif";
+      ctx.fillStyle = "#f0ede8"; ctx.font = "bold 26px serif";
       ctx.fillText(rep.label, 32, y); y += 18;
       ctx.fillStyle = "#444"; ctx.font = "11px sans-serif";
       ctx.fillText("Generado el " + new Date(rep.generadoEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }), 32, y); y += 32;
 
-      ctx.strokeStyle = "#2a1818"; ctx.lineWidth = 1;
+      ctx.strokeStyle = "#1e1e22"; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(32, y); ctx.lineTo(W - 32, y); ctx.stroke(); y += 22;
 
       ctx.fillStyle = "#c9a84c"; ctx.font = "bold 32px sans-serif";
@@ -396,7 +358,7 @@ export default function App() {
         ctx.fillStyle = "#888"; ctx.font = "12px sans-serif";
         ctx.fillText(`${d.count} reservas · ${d.personas} personas`, 160, y);
         const barX = 32, barY = y + 5, barW = W - 64, barH = 5;
-        ctx.fillStyle = "#2a1818"; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
+        ctx.fillStyle = "#1e1e22"; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
         ctx.fillStyle = roleColors[role.id] || "#888"; ctx.beginPath(); ctx.roundRect(barX, barY, barW * (d.count / rep.totalReservas), barH, 3); ctx.fill();
         y += 32;
       });
@@ -410,7 +372,7 @@ export default function App() {
         ctx.fillStyle = "#888"; ctx.font = "12px sans-serif";
         ctx.fillText(formatDate(fecha), 32, y);
         const barX = 100, barW = W - 230, barH = 6, barY = y - 10;
-        ctx.fillStyle = "#2a1818"; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
+        ctx.fillStyle = "#1e1e22"; ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 3); ctx.fill();
         ctx.fillStyle = "#c9a84c"; ctx.beginPath(); ctx.roundRect(barX, barY, barW * (d.count / maxCount), barH, 3); ctx.fill();
         ctx.fillStyle = "#555"; ctx.font = "11px sans-serif";
         ctx.fillText(`${d.count} res · ${d.personas} p`, barX + barW + 10, y);
@@ -418,12 +380,12 @@ export default function App() {
       });
       y += 8;
 
-      ctx.strokeStyle = "#2a1818"; ctx.beginPath(); ctx.moveTo(32, y); ctx.lineTo(W - 32, y); ctx.stroke(); y += 18;
+      ctx.strokeStyle = "#1e1e22"; ctx.beginPath(); ctx.moveTo(32, y); ctx.lineTo(W - 32, y); ctx.stroke(); y += 18;
       ctx.fillStyle = "#555"; ctx.font = "10px sans-serif";
       ctx.fillText("DETALLE DE RESERVAS", 32, y); y += 20;
       detailLines.forEach(r => {
         ctx.fillStyle = "#888"; ctx.font = "11px sans-serif"; ctx.fillText(formatDate(r.fecha), 32, y);
-        ctx.fillStyle = "#f5e8e0"; ctx.font = "12px sans-serif";
+        ctx.fillStyle = "#f0ede8"; ctx.font = "12px sans-serif";
         ctx.fillText(r.nombre.length > 22 ? r.nombre.slice(0, 22) + "…" : r.nombre, 90, y);
         ctx.fillStyle = "#666"; ctx.font = "11px sans-serif"; ctx.fillText(`👤${r.personas}`, 340, y);
         ctx.fillStyle = roleColors[r.rol] || "#888"; ctx.font = "bold 11px sans-serif"; ctx.fillText(r.iniciales, 380, y);
@@ -464,53 +426,8 @@ export default function App() {
   const llegaron = filteredBase.filter(r => r.llego).length;
   const esSabado = isSaturday();
 
-  // ── Login gate ───────────────────────────────────────────────
-  if (!perfil) {
-    return (
-      <div style={{ minHeight: "100vh", background: "#d4a0a0", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet" />
-        {/* Logo */}
-        <div style={{ background: "#c08080", borderRadius: 20, padding: "20px 24px", marginBottom: 32, width: "100%", maxWidth: 320, textAlign: "center", boxShadow: "0 4px 20px #7a303033" }}>
-          <img src="https://cantacorazon.com/assets/images/logo-canta-corazn.png" alt="Canta Corazón" style={{ height: 64, objectFit: "contain" }} />
-          <div style={{ fontSize: 9, letterSpacing: 3, color: "#5a1e1e", textTransform: "uppercase", marginTop: 8 }}>Guanajuato · Reservaciones</div>
-        </div>
-
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Bienvenida</div>
-        <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
-
-        {/* Dots */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-          {[0,1,2,3].map(i => (
-            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: pinInput.length > i ? "#7a3030" : "#b87878", border: `1px solid ${pinInput.length > i ? "#7a3030" : "#c08080"}`, transition: "background 0.15s" }} />
-          ))}
-        </div>
-
-        <input
-          type="password" inputMode="numeric" maxLength={4} value={pinInput}
-          onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
-          onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
-          placeholder="••••"
-          style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#c98e8e", border: `1px solid ${pinError ? "#8b1a1a" : "#b87878"}`, borderRadius: 12, padding: "14px", color: "#3d1010", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
-        />
-        {pinError && <div style={{ color: "#5a1e1e", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>PIN incorrecto</div>}
-
-        <button onClick={handlePinSubmit}
-          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px #7a303044" }}>
-          Entrar
-        </button>
-
-        {/* Perfiles hint */}
-        <div style={{ marginTop: 40, display: "flex", gap: 16, opacity: 0.5 }}>
-          {["Staff","Supervisor","Admin"].map(p => (
-            <div key={p} style={{ fontSize: 10, color: "#5a1e1e", letterSpacing: 1, textTransform: "uppercase" }}>{p}</div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ minHeight: "100vh", background: "#1a0a0a", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", paddingBottom: 88 }}>
+    <div style={{ minHeight: "100vh", background: "#0d0d0f", fontFamily: "'DM Sans', sans-serif", color: "#f0ede8", paddingBottom: 88 }}>
 
       {/* ── Header con logo + botón nueva reserva ── */}
       <div style={{ background: "#d4a0a0", borderBottom: "1px solid #b87878" }}>
@@ -521,16 +438,8 @@ export default function App() {
             alt="Canta Corazón"
             style={{ height: 48, width: "auto", objectFit: "contain" }}
           />
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 9, letterSpacing: 3, color: "#7a3030", textTransform: "uppercase", lineHeight: 1.6 }}>
-              Guanajuato · Rvs
-            </div>
-            <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: PERFIL_COLOR[perfil], background: PERFIL_COLOR[perfil] + "22", border: "1px solid " + PERFIL_COLOR[perfil] + "66", borderRadius: 20, padding: "2px 10px" }}>
-                {PERFIL_LABEL[perfil]}
-              </div>
-              <button onClick={() => { setPerfil(null); setPinInput(""); }} style={{ background: "none", border: "none", fontSize: 10, color: "#9a7878", cursor: "pointer", padding: 0 }}>Salir</button>
-            </div>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#7a3030", textTransform: "uppercase", textAlign: "right", lineHeight: 1.6 }}>
+            Guanajuato<br />Reservaciones
           </div>
         </div>
 
@@ -570,14 +479,14 @@ export default function App() {
             <div style={{ padding: "18px 16px" }}>
 
               {/* Banner sábado */}
-              {esSabado && puede.generarCorte && (
+              {esSabado && (
                 <div style={{ background: "linear-gradient(135deg, #c9a84c22, #7c6fff22)", border: "1px solid #c9a84c55", borderRadius: 14, padding: "14px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ fontSize: 26 }}>📊</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#c9a84c" }}>¡Es sábado!</div>
-                    <div style={{ fontSize: 12, color: "#b08080", marginTop: 2 }}>Genera el corte con las reservas que llegaron</div>
+                    <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>Genera el corte con las reservas que llegaron</div>
                   </div>
-                  <button onClick={generarCorte} disabled={generando} style={{ background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 9, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer" }}>
+                  <button onClick={generarCorte} disabled={generando} style={{ background: "#c9a84c", color: "#0d0d0f", border: "none", borderRadius: 9, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer" }}>
                     {generando ? "..." : "Corte"}
                   </button>
                 </div>
@@ -589,11 +498,11 @@ export default function App() {
                 const DIAS_CORTO = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
                 return todosLosDias.length > 0 ? (
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#8a6868", textTransform: "uppercase", marginBottom: 8 }}>Día</div>
+                    <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#444", textTransform: "uppercase", marginBottom: 8 }}>Día</div>
                     <div style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 4 }}>
                       <button
                         onClick={() => setFilterDate("")}
-                        style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 12, border: "1px solid", borderColor: !filterDate ? "#c9a84c" : "#3a2020", background: !filterDate ? "#c9a84c22" : "#1e1210", color: !filterDate ? "#c9a84c" : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 12, border: "1px solid", borderColor: !filterDate ? "#c9a84c" : "#2a2a2e", background: !filterDate ? "#c9a84c22" : "#16161a", color: !filterDate ? "#c9a84c" : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                         Todos
                       </button>
                       {todosLosDias.map(fecha => {
@@ -602,7 +511,7 @@ export default function App() {
                         const active = filterDate === fecha;
                         return (
                           <button key={fecha} onClick={() => setFilterDate(active ? "" : fecha)}
-                            style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 12, border: "1px solid", borderColor: active ? "#c9a84c" : "#3a2020", background: active ? "#c9a84c22" : "#1e1210", color: active ? "#c9a84c" : "#888", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                            style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 12, border: "1px solid", borderColor: active ? "#c9a84c" : "#2a2a2e", background: active ? "#c9a84c22" : "#16161a", color: active ? "#c9a84c" : "#888", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                             <span style={{ fontSize: 11, color: active ? "#c9a84c" : "#555" }}>{DIAS_CORTO[d.getDay()]}</span>
                             <span style={{ fontSize: 14, fontWeight: 700 }}>{d.getDate()}</span>
                             <span style={{ fontSize: 9, color: active ? "#c9a84c88" : "#333" }}>{count} res</span>
@@ -618,7 +527,7 @@ export default function App() {
               <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
                 {[{ id: "all", label: "Todos", color: "#c9a84c" }, ...ROLES].map(r => (
                   <button key={r.id} onClick={() => setFilterRole(r.id === "all" ? "all" : (filterRole === r.id ? "all" : r.id))}
-                    style={{ padding: "5px 13px", borderRadius: 20, border: "1px solid", borderColor: filterRole === r.id ? r.color : "#3a2020", background: filterRole === r.id ? r.color + "22" : "transparent", color: filterRole === r.id ? r.color : "#666", fontSize: 12, cursor: "pointer", fontWeight: 500 }}>
+                    style={{ padding: "5px 13px", borderRadius: 20, border: "1px solid", borderColor: filterRole === r.id ? r.color : "#2a2a2e", background: filterRole === r.id ? r.color + "22" : "transparent", color: filterRole === r.id ? r.color : "#666", fontSize: 12, cursor: "pointer", fontWeight: 500 }}>
                     {r.label}
                   </button>
                 ))}
@@ -632,9 +541,9 @@ export default function App() {
               </div>
 
               {loading ? (
-                <div style={{ textAlign: "center", color: "#8a6868", padding: 40, fontSize: 13 }}>Conectando...</div>
+                <div style={{ textAlign: "center", color: "#444", padding: 40, fontSize: 13 }}>Conectando...</div>
               ) : sortedDays.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "44px 20px", color: "#8a6868", fontSize: 13, lineHeight: 1.8 }}>
+                <div style={{ textAlign: "center", padding: "44px 20px", color: "#444", fontSize: 13, lineHeight: 1.8 }}>
                   <div style={{ fontSize: 30, marginBottom: 8 }}>📋</div>
                   No hay reservaciones.<br />
                   Presiona <strong style={{ color: "#c9a84c" }}>+ Nueva</strong> para agregar una.
@@ -650,13 +559,13 @@ export default function App() {
                         {/* Day header */}
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                           <div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: "#f5e8e0" }}>{formatDateFull(fecha)}</div>
-                            <div style={{ fontSize: 11, color: "#9a7878", marginTop: 1 }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: "#f0ede8" }}>{formatDateFull(fecha)}</div>
+                            <div style={{ fontSize: 11, color: "#555", marginTop: 1 }}>
                               {items.length} reservas · {diaPersonas} personas
-                              {diaLlegaron > 0 && <span style={{ color: "#4a9e6a", marginLeft: 6 }}>· {diaLlegaron} llegaron ✓</span>}
+                              {diaLlegaron > 0 && <span style={{ color: "#4fc9a8", marginLeft: 6 }}>· {diaLlegaron} llegaron ✓</span>}
                             </div>
                           </div>
-                          <div style={{ fontSize: 11, color: "#7a5050", fontWeight: 600, background: "#1e1210", border: "1px solid #2a1818", borderRadius: 20, padding: "3px 10px" }}>
+                          <div style={{ fontSize: 11, color: "#333", fontWeight: 600, background: "#16161a", border: "1px solid #1e1e22", borderRadius: 20, padding: "3px 10px" }}>
                             {diaLlegaron}/{items.length}
                           </div>
                         </div>
@@ -668,42 +577,38 @@ export default function App() {
                             return (
                               <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                 {/* Número */}
-                                <div style={{ minWidth: 20, fontSize: 11, color: "#7a5050", textAlign: "right", fontWeight: 600 }}>{idx + 1}</div>
+                                <div style={{ minWidth: 20, fontSize: 11, color: "#333", textAlign: "right", fontWeight: 600 }}>{idx + 1}</div>
 
                                 {/* Checkbox llegó */}
                                 <button
                                   onClick={() => toggleLlego(r)}
-                                  disabled={isCheckBlocked(r)}
                                   style={{
                                     width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                                    border: `2px solid ${r.llego ? "#4a9e6a" : isCheckBlocked(r) ? "#3a2020" : "#3a2020"}`,
-                                    background: r.llego ? "#4a9e6a22" : isCheckBlocked(r) ? "#2a1818" : "transparent",
-                                    cursor: isCheckBlocked(r) ? "not-allowed" : "pointer",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    fontSize: isCheckBlocked(r) ? 11 : 14,
-                                    color: "#4a9e6a", transition: "all 0.15s",
-                                    opacity: isCheckBlocked(r) && !r.llego ? 0.4 : 1,
+                                    border: `2px solid ${r.llego ? "#4fc9a8" : "#2a2a2e"}`,
+                                    background: r.llego ? "#4fc9a822" : "transparent",
+                                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: 14, transition: "all 0.15s",
                                   }}
                                 >
-                                  {r.llego ? "✓" : isCheckBlocked(r) ? "🔒" : ""}
+                                  {r.llego ? "✓" : ""}
                                 </button>
 
                                 {/* Card */}
                                 <div
                                   onClick={() => { setSelected(r); setView("detail"); }}
                                   style={{
-                                    flex: 1, background: r.llego ? "#0f1a12" : "#1e1210",
-                                    border: "1px solid #2a1818",
+                                    flex: 1, background: r.llego ? "#0f1f1a" : "#16161a",
+                                    border: "1px solid #1e1e22",
                                     borderLeft: `3px solid ${r.llego ? "#4fc9a8" : rc.border}`,
                                     borderRadius: 12, padding: "11px 13px", cursor: "pointer",
                                     display: "flex", alignItems: "center", gap: 10,
                                     opacity: r.llego ? 1 : 0.85,
                                   }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: r.llego ? "#7efbaa" : "#f5e8e0" }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: r.llego ? "#7efbaa" : "#f0ede8" }}>
                                       {r.nombre}
                                     </div>
-                                    <div style={{ fontSize: 11, color: "#a07878", marginTop: 2 }}>
+                                    <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
                                       👤 {r.personas} · <span style={{ color: rc.text }}>{r.iniciales}</span>
                                     </div>
                                   </div>
@@ -717,7 +622,7 @@ export default function App() {
                         </div>
 
                         {/* Divider */}
-                        <div style={{ height: 1, background: "#261414", marginTop: 18 }} />
+                        <div style={{ height: 1, background: "#1a1a1e", marginTop: 18 }} />
                       </div>
                     );
                   })}
@@ -726,7 +631,7 @@ export default function App() {
 
               {!esSabado && reservaciones.length > 0 && (
                 <div style={{ marginTop: 8, textAlign: "center" }}>
-                  <button onClick={generarCorte} disabled={generando} style={{ background: "none", border: "1px solid #3a2020", color: "#9a7878", borderRadius: 10, padding: "10px 20px", fontSize: 12, cursor: generando ? "not-allowed" : "pointer" }}>
+                  <button onClick={generarCorte} disabled={generando} style={{ background: "none", border: "1px solid #2a2a2e", color: "#555", borderRadius: 10, padding: "10px 20px", fontSize: 12, cursor: generando ? "not-allowed" : "pointer" }}>
                     {generando ? "Generando..." : "⚡ Generar corte semanal ahora"}
                   </button>
                 </div>
@@ -737,7 +642,7 @@ export default function App() {
           {/* FORM */}
           {view === "form" && (
             <div style={{ padding: "18px 16px" }}>
-              <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#a07878", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 20 }}>← Volver</button>
+              <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#666", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 20 }}>← Volver</button>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 22 }}>Nueva Reservación</div>
               {[
                 { label: "Fecha", key: "fecha", type: "date" },
@@ -746,21 +651,21 @@ export default function App() {
                 { label: "Iniciales (quien registra)", key: "iniciales", type: "text", placeholder: "Ej. KS" },
               ].map(field => (
                 <div key={field.key} style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 10, letterSpacing: 1, color: "#a07878", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{field.label}</label>
+                  <label style={{ fontSize: 10, letterSpacing: 1, color: "#777", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{field.label}</label>
                   <input type={field.type} value={form[field.key]} placeholder={field.placeholder}
                     onChange={e => { setForm(f => ({ ...f, [field.key]: e.target.value })); setErrors(err => ({ ...err, [field.key]: null })); }}
-                    style={{ width: "100%", boxSizing: "border-box", background: "#1e1210", border: `1px solid ${errors[field.key] ? "#c94c4c" : "#3a2020"}`, borderRadius: 10, padding: "12px 15px", color: "#f5e8e0", fontSize: 15, outline: "none" }} />
+                    style={{ width: "100%", boxSizing: "border-box", background: "#16161a", border: `1px solid ${errors[field.key] ? "#c94c4c" : "#2a2a2e"}`, borderRadius: 10, padding: "12px 15px", color: "#f0ede8", fontSize: 15, outline: "none" }} />
                   {errors[field.key] && <div style={{ color: "#c94c4c", fontSize: 11, marginTop: 3 }}>{errors[field.key]}</div>}
                 </div>
               ))}
               <div style={{ marginBottom: 26 }}>
-                <label style={{ fontSize: 10, letterSpacing: 1, color: "#a07878", textTransform: "uppercase", display: "block", marginBottom: 10 }}>Registrado por</label>
+                <label style={{ fontSize: 10, letterSpacing: 1, color: "#777", textTransform: "uppercase", display: "block", marginBottom: 10 }}>Registrado por</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
                   {ROLES.map(r => {
                     const active = form.rol === r.id;
                     return (
                       <button key={r.id} onClick={() => { setForm(f => ({ ...f, rol: r.id })); setErrors(err => ({ ...err, rol: null })); }}
-                        style={{ flex: "1 1 calc(50% - 5px)", padding: "13px 6px", borderRadius: 12, border: `1.5px solid ${active ? r.color : "#3a2020"}`, background: active ? r.color + "22" : "#1e1210", color: active ? r.color : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        style={{ flex: "1 1 calc(50% - 5px)", padding: "13px 6px", borderRadius: 12, border: `1.5px solid ${active ? r.color : "#2a2a2e"}`, background: active ? r.color + "22" : "#16161a", color: active ? r.color : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                         {r.label}
                       </button>
                     );
@@ -768,7 +673,7 @@ export default function App() {
                 </div>
                 {errors.rol && <div style={{ color: "#c94c4c", fontSize: 11, marginTop: 5 }}>{errors.rol}</div>}
               </div>
-              <button onClick={handleSubmit} disabled={saving} style={{ width: "100%", padding: "15px", background: saving ? "#5a4a1a" : "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
+              <button onClick={handleSubmit} disabled={saving} style={{ width: "100%", padding: "15px", background: saving ? "#5a4a1a" : "#c9a84c", color: "#0d0d0f", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
                 {saving ? "Guardando..." : "Guardar Reservación"}
               </button>
             </div>
@@ -780,8 +685,8 @@ export default function App() {
             const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
             return (
               <div style={{ padding: "18px 16px" }}>
-                <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#a07878", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 22 }}>← Volver</button>
-                <div style={{ background: "#1e1210", borderRadius: 16, border: `1px solid ${rc.border}44`, overflow: "hidden", marginBottom: 18 }}>
+                <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#666", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 22 }}>← Volver</button>
+                <div style={{ background: "#16161a", borderRadius: 16, border: `1px solid ${rc.border}44`, overflow: "hidden", marginBottom: 18 }}>
                   <div style={{ background: rc.bg, padding: "18px 20px 14px", borderBottom: `1px solid ${rc.border}33` }}>
                     <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.5, color: rc.text, textTransform: "uppercase", marginBottom: 6 }}>{ROLES.find(x => x.id === r.rol)?.label}</div>
                     <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700 }}>{r.nombre}</div>
@@ -793,14 +698,14 @@ export default function App() {
                       { icon: "✍️", label: "Registrado por", val: r.iniciales },
                       { icon: r.llego ? "✅" : "⏳", label: "Asistencia", val: r.llego ? "Llegó" : "Pendiente" },
                     ].map(item => (
-                      <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid #2a1818", fontSize: 14 }}>
-                        <span style={{ color: "#a07878" }}>{item.icon} {item.label}</span>
-                        <span style={{ fontWeight: 600, color: item.label === "Asistencia" ? (r.llego ? "#4fc9a8" : "#888") : "#f5e8e0" }}>{item.val}</span>
+                      <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid #1e1e22", fontSize: 14 }}>
+                        <span style={{ color: "#666" }}>{item.icon} {item.label}</span>
+                        <span style={{ fontWeight: 600, color: item.label === "Asistencia" ? (r.llego ? "#4fc9a8" : "#888") : "#f0ede8" }}>{item.val}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-                <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id, r.iniciales); }}
+                <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id); }}
                   style={{ width: "100%", padding: "13px", background: "transparent", color: "#c94c4c", border: "1px solid #c94c4c44", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                   Eliminar reservación
                 </button>
@@ -813,20 +718,48 @@ export default function App() {
       {/* ── TAB REPORTES ── */}
       {tab === "reportes" && (
         <>
+          {/* PIN GATE */}
+          {!pinDesbloqueado ? (
+            <div style={{ padding: "60px 32px 32px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>🔐</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6, textAlign: "center" }}>Acceso restringido</div>
+              <div style={{ fontSize: 13, color: "#555", marginBottom: 32, textAlign: "center" }}>Ingresa el PIN para ver los cortes semanales</div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 12, justifyContent: "center" }}>
+                {[0,1,2,3].map(i => (
+                  <div key={i} style={{ width: 18, height: 18, borderRadius: "50%", background: pinInput.length > i ? "#c9a84c" : "#2a2a2e", transition: "background 0.15s" }} />
+                ))}
+              </div>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={pinInput}
+                onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
+                onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
+                placeholder="••••"
+                style={{ width: "100%", maxWidth: 200, textAlign: "center", background: "#16161a", border: `1px solid ${pinError ? "#c94c4c" : "#2a2a2e"}`, borderRadius: 12, padding: "14px", color: "#f0ede8", fontSize: 24, letterSpacing: 8, outline: "none", marginBottom: 8 }}
+              />
+              {pinError && <div style={{ color: "#c94c4c", fontSize: 12, marginBottom: 12 }}>PIN incorrecto, intenta de nuevo</div>}
+              <button
+                onClick={handlePinSubmit}
+                style={{ marginTop: 8, width: "100%", maxWidth: 200, padding: "13px", background: "#c9a84c", color: "#0d0d0f", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                Entrar
+              </button>
+            </div>
+          ) : (
+          <>
           {view !== "reporte_detalle" && (
             <div style={{ padding: "18px 16px" }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Cortes Semanales</div>
-              <div style={{ fontSize: 12, color: "#9a7878", marginBottom: 20 }}>Solo incluye reservas marcadas como llegaron</div>
-              {puede.generarCorte && (
-                <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: esSabado ? "#c9a84c" : "#1e1210", color: esSabado ? "#1a0a0a" : "#9a7878", border: esSabado ? "none" : "1px solid #3a2020", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                  <span>{generando ? "Generando..." : "📊 Generar corte de esta semana"}</span>
-                  {esSabado && <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>· Hoy es sábado ✓</span>}
-                </button>
-              )}
+              <div style={{ fontSize: 12, color: "#555", marginBottom: 20 }}>Solo incluye reservas marcadas como llegaron</div>
+              <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: esSabado ? "#c9a84c" : "#16161a", color: esSabado ? "#0d0d0f" : "#888", border: esSabado ? "none" : "1px solid #2a2a2e", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <span>{generando ? "Generando..." : "📊 Generar corte de esta semana"}</span>
+                {esSabado && <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>· Hoy es sábado ✓</span>}
+              </button>
               {loading ? (
-                <div style={{ textAlign: "center", color: "#8a6868", padding: 30, fontSize: 13 }}>Cargando...</div>
+                <div style={{ textAlign: "center", color: "#444", padding: 30, fontSize: 13 }}>Cargando...</div>
               ) : reportes.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: "#8a6868", fontSize: 13, lineHeight: 1.8 }}>
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "#444", fontSize: 13, lineHeight: 1.8 }}>
                   <div style={{ fontSize: 30, marginBottom: 8 }}>📁</div>
                   Aún no hay cortes generados.
                 </div>
@@ -834,15 +767,15 @@ export default function App() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {reportes.map((rep, i) => (
                     <div key={rep.id} onClick={() => { setSelectedReporte(rep); setView("reporte_detalle"); }}
-                      style={{ background: "#1e1210", borderRadius: 13, padding: "15px 16px", border: "1px solid #2a1818", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
-                      <div style={{ background: i === 0 ? "#c9a84c22" : "#1a0a0a", borderRadius: 10, padding: "8px 10px", minWidth: 38, textAlign: "center" }}>
+                      style={{ background: "#16161a", borderRadius: 13, padding: "15px 16px", border: "1px solid #1e1e22", cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+                      <div style={{ background: i === 0 ? "#c9a84c22" : "#111", borderRadius: 10, padding: "8px 10px", minWidth: 38, textAlign: "center" }}>
                         <div style={{ fontSize: 18 }}>📋</div>
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{rep.label}</div>
-                        <div style={{ fontSize: 11, color: "#9a7878", marginTop: 3 }}>{rep.totalReservas} asistieron · {rep.totalPersonas} personas</div>
+                        <div style={{ fontSize: 11, color: "#555", marginTop: 3 }}>{rep.totalReservas} asistieron · {rep.totalPersonas} personas</div>
                       </div>
-                      <div style={{ color: "#7a5050", fontSize: 18 }}>›</div>
+                      <div style={{ color: "#333", fontSize: 18 }}>›</div>
                     </div>
                   ))}
                 </div>
@@ -856,18 +789,18 @@ export default function App() {
             const diasOrdenados = Object.keys(rep.byDay).sort();
             return (
               <div style={{ padding: "18px 16px" }}>
-                <button onClick={() => { setView("list"); setTab("reportes"); }} style={{ background: "none", border: "none", color: "#a07878", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 20 }}>← Reportes</button>
-                <div style={{ fontSize: 10, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 4 }}>Corte semanal</div>
+                <button onClick={() => { setView("list"); setTab("reportes"); }} style={{ background: "none", border: "none", color: "#666", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 20 }}>← Reportes</button>
+                <div style={{ fontSize: 10, letterSpacing: 2, color: "#555", textTransform: "uppercase", marginBottom: 4 }}>Corte semanal</div>
                 <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{rep.label}</div>
-                <div style={{ fontSize: 11, color: "#8a6868", marginBottom: 18 }}>
+                <div style={{ fontSize: 11, color: "#444", marginBottom: 18 }}>
                   Generado el {new Date(rep.generadoEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
                 </div>
                 <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
-                  <button onClick={() => handleCopyText(rep)} style={{ flex: 1, padding: "12px 10px", background: copied ? "#1a3d2a" : "#1e1210", border: `1px solid ${copied ? "#4a9e6a" : "#3a2020"}`, borderRadius: 12, color: copied ? "#a0e8b8" : "#aaa", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, transition: "all 0.2s" }}>
+                  <button onClick={() => handleCopyText(rep)} style={{ flex: 1, padding: "12px 10px", background: copied ? "#1a3d2a" : "#16161a", border: `1px solid ${copied ? "#4cc97c" : "#2a2a2e"}`, borderRadius: 12, color: copied ? "#7efbaa" : "#aaa", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, transition: "all 0.2s" }}>
                     <span style={{ fontSize: 16 }}>{copied ? "✓" : "💬"}</span>
                     {copied ? "¡Copiado!" : "Copiar para WhatsApp"}
                   </button>
-                  <button onClick={() => handleShareImage(rep)} style={{ flex: 1, padding: "12px 10px", background: "#1e1210", border: "1px solid #3a2020", borderRadius: 12, color: "#aaa", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+                  <button onClick={() => handleShareImage(rep)} style={{ flex: 1, padding: "12px 10px", background: "#16161a", border: "1px solid #2a2a2e", borderRadius: 12, color: "#aaa", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
                     <span style={{ fontSize: 16 }}>🖼️</span>
                     Descargar imagen
                   </button>
@@ -877,39 +810,39 @@ export default function App() {
                   <StatCard val={rep.totalPersonas} label="Personas" />
                 </div>
                 {rep.totalRegistradas && (
-                  <div style={{ fontSize: 12, color: "#8a6868", textAlign: "center", marginBottom: 16, marginTop: -10 }}>
+                  <div style={{ fontSize: 12, color: "#444", textAlign: "center", marginBottom: 16, marginTop: -10 }}>
                     De {rep.totalRegistradas} reservas registradas esa semana
                   </div>
                 )}
-                <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
-                  <div style={{ fontSize: 11, letterSpacing: 1, color: "#9a7878", textTransform: "uppercase", marginBottom: 12 }}>Por categoría</div>
+                <div style={{ background: "#16161a", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #1e1e22" }}>
+                  <div style={{ fontSize: 11, letterSpacing: 1, color: "#555", textTransform: "uppercase", marginBottom: 12 }}>Por categoría</div>
                   <RoleBar reservaciones={rep.reservaciones} />
                 </div>
-                <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
-                  <div style={{ fontSize: 11, letterSpacing: 1, color: "#9a7878", textTransform: "uppercase", marginBottom: 14 }}>Por día</div>
+                <div style={{ background: "#16161a", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #1e1e22" }}>
+                  <div style={{ fontSize: 11, letterSpacing: 1, color: "#555", textTransform: "uppercase", marginBottom: 14 }}>Por día</div>
                   {diasOrdenados.map(fecha => {
                     const d = rep.byDay[fecha];
                     const maxCount = Math.max(...Object.values(rep.byDay).map(x => x.count));
                     return (
                       <div key={fecha} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                        <div style={{ minWidth: 60, fontSize: 12, color: "#b08080" }}>{formatDate(fecha)}</div>
-                        <div style={{ flex: 1, background: "#2a1818", borderRadius: 4, height: 8, overflow: "hidden" }}>
+                        <div style={{ minWidth: 60, fontSize: 12, color: "#888" }}>{formatDate(fecha)}</div>
+                        <div style={{ flex: 1, background: "#1e1e22", borderRadius: 4, height: 8, overflow: "hidden" }}>
                           <div style={{ width: `${(d.count / maxCount) * 100}%`, background: "#4fc9a8", height: "100%", borderRadius: 4 }} />
                         </div>
-                        <div style={{ minWidth: 60, fontSize: 11, color: "#a07878", textAlign: "right" }}>{d.count} · {d.personas} p</div>
+                        <div style={{ minWidth: 60, fontSize: 11, color: "#666", textAlign: "right" }}>{d.count} · {d.personas} p</div>
                       </div>
                     );
                   })}
                 </div>
-                <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", border: "1px solid #2a1818" }}>
-                  <div style={{ fontSize: 11, letterSpacing: 1, color: "#9a7878", textTransform: "uppercase", marginBottom: 14 }}>Detalle de asistentes</div>
+                <div style={{ background: "#16161a", borderRadius: 14, padding: "16px", border: "1px solid #1e1e22" }}>
+                  <div style={{ fontSize: 11, letterSpacing: 1, color: "#555", textTransform: "uppercase", marginBottom: 14 }}>Detalle de asistentes</div>
                   {rep.reservaciones.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre)).map(r => {
                     const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
                     return (
-                      <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #2a1818" }}>
-                        <div style={{ fontSize: 12, color: "#9a7878", minWidth: 52 }}>{formatDate(r.fecha)}</div>
+                      <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #1e1e22" }}>
+                        <div style={{ fontSize: 12, color: "#555", minWidth: 52 }}>{formatDate(r.fecha)}</div>
                         <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</div>
-                        <div style={{ fontSize: 11, color: "#a07878" }}>👤{r.personas}</div>
+                        <div style={{ fontSize: 11, color: "#666" }}>👤{r.personas}</div>
                         <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}` }}>{r.iniciales}</div>
                       </div>
                     );
@@ -919,22 +852,19 @@ export default function App() {
             );
           })()}
         </>
+          )}
+        </>
       )}
 
       {/* Bottom Nav */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#1a0a0a", borderTop: "1px solid #2a1818", display: "flex", padding: "10px 0 20px" }}>
-        <button onClick={() => { setTab("lista"); setView("list"); }}
-          style={{ flex: 1, background: "none", border: "none", color: tab === "lista" ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === "lista" ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-          <span style={{ fontSize: 20 }}>📋</span>
-          Reservas
-        </button>
-        {puede.verReportes && (
-          <button onClick={() => { setTab("reportes"); setView("list"); }}
-            style={{ flex: 1, background: "none", border: "none", color: tab === "reportes" ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === "reportes" ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <span style={{ fontSize: 20 }}>📊</span>
-            Cortes
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0d0d0f", borderTop: "1px solid #1e1e22", display: "flex", padding: "10px 0 20px" }}>
+        {[{ id: "lista", label: "Reservas", icon: "📋" }, { id: "reportes", label: "Cortes", icon: "📊" }].map(t => (
+          <button key={t.id} onClick={() => { setTab(t.id); setView("list"); if (t.id === "lista") setPinDesbloqueado(false); }}
+            style={{ flex: 1, background: "none", border: "none", color: tab === t.id ? "#c9a84c" : "#444", fontSize: 11, fontWeight: tab === t.id ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <span style={{ fontSize: 20 }}>{t.icon}</span>
+            {t.label}
           </button>
-        )}
+        ))}
       </div>
     </div>
   );
