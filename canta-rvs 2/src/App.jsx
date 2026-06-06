@@ -469,7 +469,38 @@ export default function App() {
                 </div>
               )}
 
-              {/* Filtros */}
+              {/* Filtros por día */}
+              {(() => {
+                const todosLosDias = [...new Set(reservaciones.map(r => r.fecha))].sort();
+                const DIAS_CORTO = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+                return todosLosDias.length > 0 ? (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#444", textTransform: "uppercase", marginBottom: 8 }}>Día</div>
+                    <div style={{ display: "flex", gap: 7, overflowX: "auto", paddingBottom: 4 }}>
+                      <button
+                        onClick={() => setFilterDate("")}
+                        style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 12, border: "1px solid", borderColor: !filterDate ? "#c9a84c" : "#2a2a2e", background: !filterDate ? "#c9a84c22" : "#16161a", color: !filterDate ? "#c9a84c" : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        Todos
+                      </button>
+                      {todosLosDias.map(fecha => {
+                        const d = new Date(fecha + "T12:00:00");
+                        const count = reservaciones.filter(r => r.fecha === fecha).length;
+                        const active = filterDate === fecha;
+                        return (
+                          <button key={fecha} onClick={() => setFilterDate(active ? "" : fecha)}
+                            style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 12, border: "1px solid", borderColor: active ? "#c9a84c" : "#2a2a2e", background: active ? "#c9a84c22" : "#16161a", color: active ? "#c9a84c" : "#888", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                            <span style={{ fontSize: 11, color: active ? "#c9a84c" : "#555" }}>{DIAS_CORTO[d.getDay()]}</span>
+                            <span style={{ fontSize: 14, fontWeight: 700 }}>{d.getDate()}</span>
+                            <span style={{ fontSize: 9, color: active ? "#c9a84c88" : "#333" }}>{count} res</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Filtros por categoría */}
               <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
                 {[{ id: "all", label: "Todos", color: "#c9a84c" }, ...ROLES].map(r => (
                   <button key={r.id} onClick={() => setFilterRole(r.id === "all" ? "all" : (filterRole === r.id ? "all" : r.id))}
@@ -477,12 +508,6 @@ export default function App() {
                     {r.label}
                   </button>
                 ))}
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
-                  style={{ background: "#16161a", border: "1px solid #2a2a2e", borderRadius: 10, padding: "8px 14px", color: filterDate ? "#f0ede8" : "#555", fontSize: 13, width: "100%", boxSizing: "border-box" }} />
-                {filterDate && <button onClick={() => setFilterDate("")} style={{ marginTop: 5, fontSize: 11, color: "#555", background: "none", border: "none", cursor: "pointer", padding: 0 }}>✕ Limpiar fecha</button>}
               </div>
 
               {/* Stats */}
