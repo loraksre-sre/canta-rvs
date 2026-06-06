@@ -172,11 +172,7 @@ export default function App() {
 
   // ── Toggle llegó ─────────────────────────────────────────────
   function isCheckBlocked(r) {
-    const now = new Date();
-    const today = now.toISOString().split("T")[0];
-    const hour = now.getHours();
-    // Bloqueado si la reserva es de un día anterior Y ya pasaron las 10am de hoy
-    return r.fecha < today && hour >= 10;
+    return false;
   }
 
   async function toggleLlego(r) {
