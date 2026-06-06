@@ -467,21 +467,21 @@ export default function App() {
   // ── Login gate ───────────────────────────────────────────────
   if (!perfil) {
     return (
-      <div style={{ minHeight: "100vh", background: "#d4a0a0", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+      <div style={{ minHeight: "100vh", background: "#1a0a0a", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
         <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet" />
         {/* Logo */}
-        <div style={{ background: "#c08080", borderRadius: 20, padding: "20px 24px", marginBottom: 32, width: "100%", maxWidth: 320, textAlign: "center", boxShadow: "0 4px 20px #7a303033" }}>
+        <div style={{ background: "#d4a0a0", borderRadius: 20, padding: "20px 24px", marginBottom: 32, width: "100%", maxWidth: 320, textAlign: "center" }}>
           <img src="https://cantacorazon.com/assets/images/logo-canta-corazn.png" alt="Canta Corazón" style={{ height: 64, objectFit: "contain" }} />
-          <div style={{ fontSize: 9, letterSpacing: 3, color: "#5a1e1e", textTransform: "uppercase", marginTop: 8 }}>Guanajuato · Reservaciones</div>
+          <div style={{ fontSize: 9, letterSpacing: 3, color: "#7a3030", textTransform: "uppercase", marginTop: 8 }}>Guanajuato · Reservaciones</div>
         </div>
 
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Bienvenida</div>
-        <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#f5e8e0", marginBottom: 6, textAlign: "center" }}>Bienvenida</div>
+        <div style={{ fontSize: 12, color: "#9a7878", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
 
         {/* Dots */}
         <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
           {[0,1,2,3].map(i => (
-            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: pinInput.length > i ? "#7a3030" : "#b87878", border: `1px solid ${pinInput.length > i ? "#7a3030" : "#c08080"}`, transition: "background 0.15s" }} />
+            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: pinInput.length > i ? "#c9a84c" : "#3a2020", border: `1px solid ${pinInput.length > i ? "#c9a84c" : "#4a2828"}`, transition: "background 0.15s" }} />
           ))}
         </div>
 
@@ -490,19 +490,19 @@ export default function App() {
           onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
           onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
           placeholder="••••"
-          style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#c98e8e", border: `1px solid ${pinError ? "#8b1a1a" : "#b87878"}`, borderRadius: 12, padding: "14px", color: "#3d1010", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
+          style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#1e1210", border: `1px solid ${pinError ? "#c94c4c" : "#3a2020"}`, borderRadius: 12, padding: "14px", color: "#f5e8e0", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
         />
-        {pinError && <div style={{ color: "#5a1e1e", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>PIN incorrecto</div>}
+        {pinError && <div style={{ color: "#c94c4c", fontSize: 12, marginBottom: 12, fontStyle: "italic" }}>PIN incorrecto</div>}
 
         <button onClick={handlePinSubmit}
-          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px #7a303044" }}>
+          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
           Entrar
         </button>
 
         {/* Perfiles hint */}
-        <div style={{ marginTop: 40, display: "flex", gap: 16, opacity: 0.5 }}>
+        <div style={{ marginTop: 40, display: "flex", gap: 16, opacity: 0.4 }}>
           {["Staff","Supervisor","Admin"].map(p => (
-            <div key={p} style={{ fontSize: 10, color: "#5a1e1e", letterSpacing: 1, textTransform: "uppercase" }}>{p}</div>
+            <div key={p} style={{ fontSize: 10, color: "#9a7878", letterSpacing: 1, textTransform: "uppercase" }}>{p}</div>
           ))}
         </div>
       </div>
@@ -813,16 +813,44 @@ export default function App() {
       {/* ── TAB REPORTES ── */}
       {tab === "reportes" && (
         <>
+          {/* PIN GATE */}
+          {!pinDesbloqueado ? (
+            <div style={{ padding: "60px 32px 32px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>🔐</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6, textAlign: "center" }}>Acceso restringido</div>
+              <div style={{ fontSize: 13, color: "#9a7878", marginBottom: 32, textAlign: "center" }}>Ingresa el PIN para ver los cortes semanales</div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 12, justifyContent: "center" }}>
+                {[0,1,2,3].map(i => (
+                  <div key={i} style={{ width: 18, height: 18, borderRadius: "50%", background: pinInput.length > i ? "#c9a84c" : "#3a2020", transition: "background 0.15s" }} />
+                ))}
+              </div>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={pinInput}
+                onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
+                onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
+                placeholder="••••"
+                style={{ width: "100%", maxWidth: 200, textAlign: "center", background: "#1e1210", border: `1px solid ${pinError ? "#c94c4c" : "#3a2020"}`, borderRadius: 12, padding: "14px", color: "#f5e8e0", fontSize: 24, letterSpacing: 8, outline: "none", marginBottom: 8 }}
+              />
+              {pinError && <div style={{ color: "#c94c4c", fontSize: 12, marginBottom: 12 }}>PIN incorrecto, intenta de nuevo</div>}
+              <button
+                onClick={handlePinSubmit}
+                style={{ marginTop: 8, width: "100%", maxWidth: 200, padding: "13px", background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                Entrar
+              </button>
+            </div>
+          ) : (
+          <>
           {view !== "reporte_detalle" && (
             <div style={{ padding: "18px 16px" }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Cortes Semanales</div>
               <div style={{ fontSize: 12, color: "#9a7878", marginBottom: 20 }}>Solo incluye reservas marcadas como llegaron</div>
-              {puede.generarCorte && (
-                <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: esSabado ? "#c9a84c" : "#1e1210", color: esSabado ? "#1a0a0a" : "#9a7878", border: esSabado ? "none" : "1px solid #3a2020", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                  <span>{generando ? "Generando..." : "📊 Generar corte de esta semana"}</span>
-                  {esSabado && <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>· Hoy es sábado ✓</span>}
-                </button>
-              )}
+              <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: esSabado ? "#c9a84c" : "#1e1210", color: esSabado ? "#1a0a0a" : "#888", border: esSabado ? "none" : "1px solid #3a2020", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <span>{generando ? "Generando..." : "📊 Generar corte de esta semana"}</span>
+                {esSabado && <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>· Hoy es sábado ✓</span>}
+              </button>
               {loading ? (
                 <div style={{ textAlign: "center", color: "#8a6868", padding: 30, fontSize: 13 }}>Cargando...</div>
               ) : reportes.length === 0 ? (
@@ -918,6 +946,7 @@ export default function App() {
               </div>
             );
           })()}
+          </>
         </>
       )}
 
