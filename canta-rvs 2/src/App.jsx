@@ -463,15 +463,15 @@ export default function App() {
   // ── Login gate ───────────────────────────────────────────────
   if (!perfil) {
     return (
-      <div style={{ minHeight: "100vh", background: "#d4a0a0", fontFamily: "'DM Sans', sans-serif", color: "#f5e8e0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+      <div style={{ minHeight: "100vh", background: "#d4a0a0", fontFamily: "'DM Sans', sans-serif", color: "#3d1010", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px", textAlign: "center" }}>
         <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet" />
         {/* Logo */}
-        <div style={{ background: "#c08080", borderRadius: 20, padding: "20px 24px", marginBottom: 32, width: "100%", maxWidth: 320, textAlign: "center", boxShadow: "0 4px 20px #7a303033" }}>
+        <div style={{ marginBottom: 32, width: "100%", maxWidth: 320, textAlign: "center" }}>
           <img src="https://cantacorazon.com/assets/images/logo-canta-corazn.png" alt="Canta Corazón" style={{ height: 64, objectFit: "contain" }} />
           <div style={{ fontSize: 9, letterSpacing: 3, color: "#5a1e1e", textTransform: "uppercase", marginTop: 8 }}>Guanajuato · Reservaciones</div>
         </div>
 
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Bienvenida</div>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Bienvenidos</div>
         <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
 
         {/* Dots */}
