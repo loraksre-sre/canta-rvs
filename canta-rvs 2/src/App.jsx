@@ -9,8 +9,8 @@ import {
 
 const ROLES = [
   { id: "socio", label: "Socio", color: "#c9a84c" },
-  { id: "rp", label: "RP", color: "#7c6fff" },
-  { id: "team", label: "Team Canta", color: "#4a9e6a" },
+  { id: "rp", label: "Team Canta", color: "#7c6fff" },
+  { id: "team", label: "Operativo", color: "#4a9e6a" },
   { id: "instagram", label: "Instagram", color: "#e1306c" },
 ];
 
@@ -42,17 +42,23 @@ function formatDateFull(dateStr) {
 
 function getWeekStart(dateStr) {
   const d = new Date(dateStr + "T12:00:00");
-  d.setDate(d.getDate() - d.getDay());
+  // Semana Lunes–Domingo
+  const day = d.getDay(); // 0=Dom, 1=Lun...6=Sab
+  const diff = day === 0 ? -6 : 1 - day; // retroceder al lunes
+  d.setDate(d.getDate() + diff);
   return d.toISOString().split("T")[0];
 }
 
 function getWeekEnd(dateStr) {
   const d = new Date(dateStr + "T12:00:00");
-  d.setDate(d.getDate() + (6 - d.getDay()));
+  // Fin de semana = domingo
+  const day = d.getDay();
+  const diff = day === 0 ? 0 : 7 - day; // avanzar al domingo
+  d.setDate(d.getDate() + diff);
   return d.toISOString().split("T")[0];
 }
 
-function isSaturday() { return new Date().getDay() === 6; }
+function isSunday() { return new Date().getDay() === 0; }
 
 function weekLabel(s, e) { return `${formatDate(s)} – ${formatDate(e)}`; }
 
@@ -148,6 +154,7 @@ export default function App() {
     eliminarAjena:   perfil === "supervisor" || perfil === "admin",
     checkAsistencia: perfil === "supervisor" || perfil === "admin",
     verReportes:     perfil === "supervisor" || perfil === "admin",
+    verDashboard:    perfil === "admin",
     generarCorte:    perfil === "admin",
   };
   const PERFIL_LABEL = { staff: "👤 Staff", supervisor: "👥 Supervisor", admin: "👑 Admin" };
@@ -266,13 +273,17 @@ export default function App() {
 
   // ── Corte semanal — solo las que llegaron ────────────────────
   async function generarCorte() {
+    if (!isSunday()) {
+      showToast("El corte solo se puede generar los domingos", "error");
+      return;
+    }
     setGenerando(true);
     const hoy = getTodayLocal();
     const semanaStart = getWeekStart(hoy);
     const semanaEnd = getWeekEnd(hoy);
 
     const deEstaSemana = reservaciones.filter(r => r.fecha >= semanaStart && r.fecha <= semanaEnd);
-    const llegaron = deEstaSemana.filter(r => r.llego);
+    const llegaron = deEstaSemana.filter(r => r.llego === true);
 
     if (deEstaSemana.length === 0) {
       showToast("No hay reservaciones esta semana", "error");
@@ -458,7 +469,32 @@ export default function App() {
   const totalFiltered = filteredBase.length;
   const totalPersonas = filteredBase.reduce((s, r) => s + r.personas, 0);
   const llegaron = filteredBase.filter(r => r.llego).length;
-  const esSabado = isSaturday();
+  const esSabado = isSunday();
+
+  // ── Dashboard en tiempo real ──────────────────────────────────
+  const hoy = getTodayLocal();
+  const semanaStart = getWeekStart(hoy);
+  const semanaEnd   = getWeekEnd(hoy);
+  const semanaLabel = `${formatDate(semanaStart)} – ${formatDate(semanaEnd)}`;
+
+  const semanaActual  = reservaciones.filter(r => r.fecha >= semanaStart && r.fecha <= semanaEnd);
+  const semanaLlegaron = semanaActual.filter(r => r.llego === true);
+
+  const dashByRole = ROLES.map(role => {
+    const total   = semanaActual.filter(r => r.rol === role.id);
+    const llegaron = total.filter(r => r.llego === true);
+    return { ...role, total: total.length, llegaron: llegaron.length, personas: llegaron.reduce((s,r)=>s+r.personas,0) };
+  });
+
+  const dashByDay = (() => {
+    const days = {};
+    semanaActual.forEach(r => {
+      if (!days[r.fecha]) days[r.fecha] = { total: 0, llegaron: 0, personas: 0 };
+      days[r.fecha].total++;
+      if (r.llego === true) { days[r.fecha].llegaron++; days[r.fecha].personas += r.personas; }
+    });
+    return days;
+  })();
 
   // ── Login gate ───────────────────────────────────────────────
   if (!perfil) {
@@ -570,8 +606,8 @@ export default function App() {
                 <div style={{ background: "linear-gradient(135deg, #c9a84c22, #7c6fff22)", border: "1px solid #c9a84c55", borderRadius: 14, padding: "14px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ fontSize: 26 }}>📊</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#c9a84c" }}>¡Es sábado!</div>
-                    <div style={{ fontSize: 12, color: "#b08080", marginTop: 2 }}>Genera el corte con las reservas que llegaron</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#c9a84c" }}>¡Es domingo!</div>
+                    <div style={{ fontSize: 12, color: "#b08080", marginTop: 2 }}>Día de corte semanal</div>
                   </div>
                   <button onClick={generarCorte} disabled={generando} style={{ background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 9, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer" }}>
                     {generando ? "..." : "Corte"}
@@ -720,11 +756,11 @@ export default function App() {
                 </div>
               )}
 
-              {!esSabado && reservaciones.length > 0 && (
+              {reservaciones.length > 0 && puede.generarCorte && !isSunday() && (
                 <div style={{ marginTop: 8, textAlign: "center" }}>
-                  <button onClick={generarCorte} disabled={generando} style={{ background: "none", border: "1px solid #3a2020", color: "#9a7878", borderRadius: 10, padding: "10px 20px", fontSize: 12, cursor: generando ? "not-allowed" : "pointer" }}>
-                    {generando ? "Generando..." : "⚡ Generar corte semanal ahora"}
-                  </button>
+                  <div style={{ fontSize: 11, color: "#9a7878", fontStyle: "italic" }}>
+                    El corte semanal se genera los domingos
+                  </div>
                 </div>
               )}
             </div>
@@ -813,11 +849,17 @@ export default function App() {
             <div style={{ padding: "18px 16px" }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Cortes Semanales</div>
               <div style={{ fontSize: 12, color: "#9a7878", marginBottom: 20 }}>Solo incluye reservas marcadas como llegaron</div>
-              {puede.generarCorte && (
-                <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: esSabado ? "#c9a84c" : "#1e1210", color: esSabado ? "#1a0a0a" : "#9a7878", border: esSabado ? "none" : "1px solid #3a2020", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              {puede.generarCorte && isSunday() && (
+                <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   <span>{generando ? "Generando..." : "📊 Generar corte de esta semana"}</span>
-                  {esSabado && <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>· Hoy es sábado ✓</span>}
+                  <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8 }}>· Hoy es domingo ✓</span>
                 </button>
+              )}
+              {puede.generarCorte && !isSunday() && (
+                <div style={{ background: "#1e1210", border: "1px solid #3a2020", borderRadius: 12, padding: "14px", marginBottom: 24, textAlign: "center" }}>
+                  <div style={{ fontSize: 13, color: "#9a7878" }}>📅 El corte se genera los domingos</div>
+                  <div style={{ fontSize: 11, color: "#7a5050", marginTop: 4 }}>Incluye todas las reservas de lunes a sábado</div>
+                </div>
               )}
               {loading ? (
                 <div style={{ textAlign: "center", color: "#8a6868", padding: 30, fontSize: 13 }}>Cargando...</div>
@@ -917,6 +959,190 @@ export default function App() {
         </>
       )}
 
+      {/* ══ TAB DASHBOARD ══════════════════════════════════════════ */}
+      {tab === "dashboard" && (
+        <div style={{ padding: "20px 16px" }}>
+          {/* Header */}
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, fontStyle: "italic", color: "#f5e8e0" }}>Dashboard</div>
+            <div style={{ fontSize: 10, color: "#9a7878", letterSpacing: 1, marginTop: 2 }}>Semana actual · {semanaLabel}</div>
+          </div>
+          <div style={{ height: 1, background: "linear-gradient(90deg, #c9a84c66, transparent)", marginBottom: 20, marginTop: 8 }} />
+
+          {/* Totales */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
+            {[
+              { val: semanaActual.length,              label: "Registradas", color: "#c9a84c" },
+              { val: semanaLlegaron.length,            label: "Llegaron",    color: "#4a9e6a" },
+              { val: semanaLlegaron.reduce((s,r)=>s+r.personas,0), label: "Personas", color: "#f5e8e0" },
+            ].map(s => (
+              <div key={s.label} style={{ background: "#1e1210", borderRadius: 12, padding: "14px 8px", textAlign: "center", border: "1px solid #2a1818" }}>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: s.color, fontStyle: "italic" }}>{s.val}</div>
+                <div style={{ fontSize: 9, color: "#9a7878", marginTop: 3, letterSpacing: 1.5, textTransform: "uppercase" }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Asistencia global */}
+          {semanaActual.length > 0 && (
+            <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 12 }}>Asistencia global</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <div style={{ flex: 1, background: "#2a1818", borderRadius: 4, height: 10, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.round((semanaLlegaron.length / semanaActual.length) * 100)}%`, background: "linear-gradient(90deg, #4a9e6a, #7efbaa66)", height: "100%", borderRadius: 4, transition: "width 0.6s" }} />
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#4a9e6a", minWidth: 40 }}>
+                  {Math.round((semanaLlegaron.length / semanaActual.length) * 100)}%
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: "#7a5050" }}>{semanaLlegaron.length} de {semanaActual.length} reservas confirmaron asistencia</div>
+            </div>
+          )}
+
+          {/* Por categoría */}
+          <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 14 }}>Por categoría</div>
+            {dashByRole.filter(r => r.total > 0).map(role => (
+              <div key={role.id} style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
+                  <span style={{ color: role.color, fontWeight: 600 }}>{role.label}</span>
+                  <span style={{ color: "#9a7878" }}>
+                    {role.llegaron}/{role.total} llegaron · {role.personas}p
+                  </span>
+                </div>
+                {/* Barra total (fondo) + llegaron (encima) */}
+                <div style={{ background: "#2a1818", borderRadius: 4, height: 8, overflow: "hidden", position: "relative" }}>
+                  <div style={{ width: `${(role.total / (semanaActual.length || 1)) * 100}%`, background: role.color + "33", height: "100%", borderRadius: 4, position: "absolute" }} />
+                  <div style={{ width: `${(role.llegaron / (semanaActual.length || 1)) * 100}%`, background: role.color, height: "100%", borderRadius: 4, position: "absolute", transition: "width 0.6s" }} />
+                </div>
+              </div>
+            ))}
+            {dashByRole.every(r => r.total === 0) && (
+              <div style={{ color: "#7a5050", fontSize: 12, fontStyle: "italic" }}>Sin reservas esta semana</div>
+            )}
+          </div>
+
+          {/* Por día */}
+          {Object.keys(dashByDay).length > 0 && (
+            <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 14 }}>Por día</div>
+              {Object.keys(dashByDay).sort().map(fecha => {
+                const d = dashByDay[fecha];
+                const maxTotal = Math.max(...Object.values(dashByDay).map(x => x.total));
+                return (
+                  <div key={fecha} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <div style={{ minWidth: 60, fontSize: 11, color: "#b08080" }}>{formatDate(fecha)}</div>
+                    <div style={{ flex: 1, background: "#2a1818", borderRadius: 4, height: 8, overflow: "hidden", position: "relative" }}>
+                      <div style={{ width: `${(d.total / maxTotal) * 100}%`, background: "#c9a84c33", height: "100%", position: "absolute", borderRadius: 4 }} />
+                      <div style={{ width: `${(d.llegaron / maxTotal) * 100}%`, background: "#c9a84c", height: "100%", position: "absolute", borderRadius: 4, transition: "width 0.6s" }} />
+                    </div>
+                    <div style={{ minWidth: 70, fontSize: 10, color: "#9a7878", textAlign: "right" }}>
+                      <span style={{ color: "#4a9e6a" }}>{d.llegaron}</span>/{d.total} · {d.personas}p
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Lista en vivo */}
+          {semanaActual.length > 0 && (
+            <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", border: "1px solid #2a1818" }}>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 14 }}>Reservas de la semana</div>
+              {semanaActual.sort((a,b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre)).map(r => {
+                const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
+                return (
+                  <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "1px solid #2a1818" }}>
+                    <div style={{ fontSize: 14, color: r.llego === true ? "#4a9e6a" : "#3a2020" }}>{r.llego === true ? "✓" : "·"}</div>
+                    <div style={{ minWidth: 48, fontSize: 11, color: "#9a7878" }}>{formatDate(r.fecha)}</div>
+                    <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: r.llego === true ? "#7efbaa" : "#f5e8e0" }}>{r.nombre}</div>
+                    <div style={{ fontSize: 11, color: "#9a7878" }}>👤{r.personas}</div>
+                    <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}` }}>{r.iniciales}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {semanaActual.length === 0 && (
+            <div style={{ textAlign: "center", padding: "40px 20px", color: "#9a7878", fontStyle: "italic" }}>
+              <div style={{ fontSize: 30, marginBottom: 8 }}>📊</div>
+              Sin reservas esta semana aún
+            </div>
+          )}
+
+          {/* Desglose por categoría e iniciales */}
+          {semanaActual.length > 0 && (
+            <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818", marginTop: 14 }}>
+              <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 16 }}>Registros por categoría e iniciales</div>
+              {ROLES.map(role => {
+                const deRole = semanaActual.filter(r => r.rol === role.id);
+                if (deRole.length === 0) return null;
+
+                // Agrupar por iniciales
+                const porIniciales = deRole.reduce((acc, r) => {
+                  if (!acc[r.iniciales]) acc[r.iniciales] = { llegaron: 0, noLlegaron: 0 };
+                  if (r.llego === true) acc[r.iniciales].llegaron++;
+                  else acc[r.iniciales].noLlegaron++;
+                  return acc;
+                }, {});
+
+                return (
+                  <div key={role.id} style={{ marginBottom: 18 }}>
+                    {/* Header categoría */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: role.color }} />
+                        <span style={{ fontSize: 13, fontWeight: 700, color: role.color }}>{role.label}</span>
+                      </div>
+                      <span style={{ fontSize: 11, color: "#9a7878" }}>
+                        {deRole.length} reservas · <span style={{ color: "#4a9e6a" }}>{deRole.filter(r => r.llego === true).length} llegaron</span>
+                      </span>
+                    </div>
+
+                    {/* Fila por cada inicial */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 16, borderLeft: `2px solid ${role.color}33` }}>
+                      {Object.entries(porIniciales)
+                        .sort((a, b) => (b[1].llegaron + b[1].noLlegaron) - (a[1].llegaron + a[1].noLlegaron))
+                        .map(([inicial, datos]) => {
+                          const total = datos.llegaron + datos.noLlegaron;
+                          return (
+                            <div key={inicial} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              {/* Inicial badge */}
+                              <div style={{ minWidth: 32, height: 32, borderRadius: 8, background: role.color + "22", border: `1px solid ${role.color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: role.color }}>
+                                {inicial}
+                              </div>
+                              {/* Barra */}
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#9a7878", marginBottom: 3 }}>
+                                  <span>{total} registrada{total !== 1 ? "s" : ""}</span>
+                                  <span>
+                                    <span style={{ color: "#4a9e6a" }}>✓ {datos.llegaron}</span>
+                                    {datos.noLlegaron > 0 && <span style={{ color: "#7a5050", marginLeft: 6 }}>✗ {datos.noLlegaron}</span>}
+                                  </span>
+                                </div>
+                                <div style={{ background: "#2a1818", borderRadius: 3, height: 6, overflow: "hidden", position: "relative" }}>
+                                  {/* total fondo */}
+                                  <div style={{ position: "absolute", width: "100%", background: role.color + "22", height: "100%" }} />
+                                  {/* llegaron */}
+                                  <div style={{ position: "absolute", width: `${(datos.llegaron / total) * 100}%`, background: "#4a9e6a", height: "100%", borderRadius: 3, transition: "width 0.5s" }} />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+
+                    {/* Divisor entre categorías */}
+                    <div style={{ height: 1, background: "#2a1818", marginTop: 14 }} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Bottom Nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#1a0a0a", borderTop: "1px solid #2a1818", display: "flex", padding: "10px 0 20px" }}>
         <button onClick={() => { setTab("lista"); setView("list"); }}
@@ -927,8 +1153,15 @@ export default function App() {
         {puede.verReportes && (
           <button onClick={() => { setTab("reportes"); setView("list"); }}
             style={{ flex: 1, background: "none", border: "none", color: tab === "reportes" ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === "reportes" ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <span style={{ fontSize: 20 }}>📁</span>
+            Historial
+          </button>
+        )}
+        {puede.verDashboard && (
+          <button onClick={() => setTab("dashboard")}
+            style={{ flex: 1, background: "none", border: "none", color: tab === "dashboard" ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === "dashboard" ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
             <span style={{ fontSize: 20 }}>📊</span>
-            Cortes
+            Dashboard
           </button>
         )}
       </div>
