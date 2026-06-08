@@ -140,14 +140,6 @@ const MESA_COLORS = {
   reservada:{ bg: "#1a2a10", border: "#4a9e6a", text: "#7efbaa" },
 };
 
-// Tamaños basados en el croquis:
-// SM  = mesa individual pequeña (61, postes P)
-// MD  = mesa estándar (80,81,82,77,76,70,71,66,65)
-// LG  = mesa doble ancha (75, 72, 64, 62, 60)
-// XL  = mesa grande cuadrada (83, 74, 73, 63)
-// SEC = sección (30s, 40s, 50s — rectangulares altas)
-// PER = periquera redonda (P1–P10)
-
 const SIZES = {
   SM:  { w: 52, h: 40 },
   MD:  { w: 60, h: 46 },
@@ -161,24 +153,23 @@ function Mesa({ id, status, onToggle, size = "MD", canEdit = true }) {
   const c = MESA_COLORS[status] || MESA_COLORS.libre;
   const s = SIZES[size];
   return (
-    <div
-      onClick={() => canEdit && onToggle(id)}
-      style={{
-        width: s.w, height: s.round ? s.w : s.h,
-        borderRadius: s.round ? "50%" : 10,
-        background: c.bg,
-        border: `2px solid ${c.border}`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: canEdit ? "pointer" : "default",
-        userSelect: "none", transition: "all 0.18s", flexShrink: 0,
-        boxShadow: status !== "libre" ? `0 0 10px ${c.border}55` : "none",
-        opacity: canEdit ? 1 : 0.85,
-      }}>
-      <span style={{
-        fontSize: s.round ? 9 : (size === "XL" || size === "SEC" ? 12 : 11),
-        fontWeight: 700, color: c.text, textAlign: "center", lineHeight: 1.1,
-      }}>{id}</span>
+    <div onClick={() => canEdit && onToggle(id)} style={{
+      width: s.w, height: s.round ? s.w : s.h,
+      borderRadius: s.round ? "50%" : 10,
+      background: c.bg, border: `2px solid ${c.border}`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      cursor: canEdit ? "pointer" : "default",
+      userSelect: "none", transition: "all 0.18s", flexShrink: 0,
+      boxShadow: status !== "libre" ? `0 0 10px ${c.border}55` : "none",
+    }}>
+      <span style={{ fontSize: s.round ? 9 : (size === "XL" || size === "SEC" ? 12 : 11), fontWeight: 700, color: c.text, textAlign: "center", lineHeight: 1.1 }}>{id}</span>
     </div>
+  );
+}
+
+function ZonaLabel({ label, color = "#555" }) {
+  return (
+    <div style={{ fontSize: 8, letterSpacing: 2.5, color, textTransform: "uppercase", marginBottom: 8, fontWeight: 600 }}>{label}</div>
   );
 }
 
@@ -187,10 +178,6 @@ function MapaMesas({ mesaStatus, onToggle, canEdit }) {
   const ocupada   = Object.values(mesaStatus).filter(s => s === "ocupada").length;
   const reservada = Object.values(mesaStatus).filter(s => s === "reservada").length;
   const m = (id, size) => <Mesa key={id} id={id} status={mesaStatus[id]} onToggle={onToggle} size={size} canEdit={canEdit} />;
-
-  const row = (children, mb = 10) => (
-    <div style={{ display: "flex", gap: 8, marginBottom: mb, alignItems: "center" }}>{children}</div>
-  );
 
   return (
     <div style={{ padding: "16px", paddingBottom: 100 }}>
@@ -221,94 +208,124 @@ function MapaMesas({ mesaStatus, onToggle, canEdit }) {
         })}
       </div>
 
-      {/* ── MEZCALERÍA (fila 80-83) ── */}
-      <div style={{ background: "#120808", borderRadius: 14, padding: "12px 14px", marginBottom: 10, border: "1px solid #2a1818" }}>
-        <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 10 }}>Mezcalería</div>
-        {row(<>
-          {m(80,"MD")}{m(81,"MD")}{m(82,"MD")}
-          <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
-            {m(83,"XL")}
-            {m("P10","PER")}
+      {/* ══ SALÓN PRINCIPAL ══ */}
+      <div style={{ background: "#120808", borderRadius: 14, padding: "14px", marginBottom: 10, border: "1px solid #2a1818" }}>
+        <ZonaLabel label="Salón Principal" color="#c9a84c" />
+
+        {/* Fila 80 81 82 83 — con Mezcalería a la derecha */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {m(80,"MD")}{m(81,"MD")}{m(82,"MD")}
           </div>
-        </>, 0)}
-      </div>
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}>
+            {m(83,"XL")}
+            {/* Mezcalería tag */}
+            <div style={{ marginTop: 4, fontSize: 8, letterSpacing: 1.5, color: "#7a5050", textTransform: "uppercase", border: "1px solid #3a1818", borderRadius: 6, padding: "2px 6px" }}>Mezcalería →</div>
+          </div>
+        </div>
 
-      {/* ── BARRA IZQUIERDA + SALÓN PRINCIPAL ── */}
-      <div style={{ background: "#120808", borderRadius: 14, padding: "12px 14px", marginBottom: 10, border: "1px solid #2a1818" }}>
-        <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 10 }}>Salón · Barra</div>
+        <div style={{ height: 1, background: "#2a1818", margin: "6px 0 10px" }} />
 
-        {/* Fila 77 76 75 | 74 + P9 */}
-        {row(<>
-          {m("P1","PER")}
-          <div style={{ marginLeft: 4, display: "flex", gap: 8 }}>
+        {/* Fila P1 | 77 76 75 | 74 P9 */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+          {/* Barra izquierda indicator */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            {m("P1","PER")}
+            <div style={{ fontSize: 7, color: "#7a5050", letterSpacing: 1, textTransform: "uppercase", border: "1px solid #3a1818", borderRadius: 4, padding: "1px 4px" }}>Barra</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
             {m(77,"MD")}{m(76,"MD")}{m(75,"LG")}
           </div>
           <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             {m(74,"XL")}
+            {m("P10","PER")}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             {m("P9","PER")}
           </div>
-        </>)}
+        </div>
 
         <div style={{ height: 1, background: "#2a1818", margin: "6px 0 10px" }} />
 
-        {/* Fila 70 71 72 | 73 + P8 */}
-        {row(<>
+        {/* Fila 70 71 72 | 73 P8 */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
           <div style={{ width: SIZES.PER.w }} />
-          <div style={{ marginLeft: 4, display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             {m(70,"MD")}{m(71,"MD")}{m(72,"LG")}
           </div>
           <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             {m(73,"XL")}
+            {/* Barra derecha indicator */}
+            <div style={{ fontSize: 7, color: "#7a5050", letterSpacing: 1, textTransform: "uppercase", border: "1px solid #3a1818", borderRadius: 4, padding: "1px 4px" }}>Barra</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             {m("P8","PER")}
           </div>
-        </>)}
+        </div>
 
         <div style={{ height: 1, background: "#2a1818", margin: "6px 0 10px" }} />
 
-        {/* Fila P2 | 66 65 64 | 63 + P7 */}
-        {row(<>
-          {m("P2","PER")}
-          <div style={{ marginLeft: 4, display: "flex", gap: 8 }}>
+        {/* Fila P2 | 66 65 64 | 63 P7 */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            {m("P2","PER")}
+            <div style={{ fontSize: 7, color: "#7a5050", letterSpacing: 1, textTransform: "uppercase", border: "1px solid #3a1818", borderRadius: 4, padding: "1px 4px" }}>Barra</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
             {m(66,"MD")}{m(65,"MD")}{m(64,"LG")}
           </div>
           <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             {m(63,"XL")}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
             {m("P7","PER")}
           </div>
-        </>)}
+        </div>
 
         <div style={{ height: 1, background: "#2a1818", margin: "6px 0 10px" }} />
 
         {/* Fila 60 61 62 */}
-        {row(<>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <div style={{ width: SIZES.PER.w }} />
-          <div style={{ marginLeft: 4, display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             {m(60,"LG")}{m(61,"SM")}{m(62,"LG")}
           </div>
-        </>, 0)}
+        </div>
       </div>
 
-      {/* ── ZONA BAJA: 50s 40s | P3-P6 | 30s ── */}
-      <div style={{ background: "#120808", borderRadius: 14, padding: "12px 14px", border: "1px solid #2a1818" }}>
-        <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 10 }}>Zona Baja</div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
+      {/* ══ ZONA BAJA: 50s/40s · periqueras · 30s ══ */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+
+        {/* 50s y 40s */}
+        <div style={{ background: "#120808", borderRadius: 14, padding: "12px 10px", border: "1px solid #2a1818", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <ZonaLabel label="50s · 40s" color="#9a7878" />
           <div style={{ display: "flex", gap: 6 }}>
             {m("50s","SEC")}{m("40s","SEC")}
           </div>
+        </div>
+
+        {/* Periqueras pasillo */}
+        <div style={{ flex: 1, background: "#120808", borderRadius: 14, padding: "12px 8px", border: "1px solid #2a1818", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <ZonaLabel label="Pasillo" color="#9a7878" />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
             {["P3","P4","P5","P6"].map(id => m(id,"PER"))}
           </div>
+        </div>
+
+        {/* 30s */}
+        <div style={{ background: "#120808", borderRadius: 14, padding: "12px 10px", border: "1px solid #2a1818", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <ZonaLabel label="30s" color="#9a7878" />
           {m("30s","SEC")}
         </div>
       </div>
 
-      {/* Liberar mesas — solo si puede editar */}
+      {/* Liberar mesas */}
       {canEdit && (
-        <div style={{ marginTop: 16, textAlign: "center" }}>
+        <div style={{ marginTop: 8, textAlign: "center" }}>
           <button onClick={() => onToggle("__reset__")}
             style={{ background: "none", border: "1px solid #3a2020", color: "#9a7878", borderRadius: 10, padding: "8px 20px", fontSize: 11, cursor: "pointer", letterSpacing: 1 }}>
             ↺ Liberar todas las mesas
