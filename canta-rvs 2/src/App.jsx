@@ -42,18 +42,20 @@ function formatDateFull(dateStr) {
 
 function getWeekStart(dateStr) {
   const d = new Date(dateStr + "T12:00:00");
-  // Semana Lunes–Domingo
-  const day = d.getDay(); // 0=Dom, 1=Lun...6=Sab
-  const diff = day === 0 ? -6 : 1 - day; // retroceder al lunes
+  const day = d.getDay(); // 0=Dom
+  // Si es domingo, retroceder 6 días (al lunes anterior)
+  // Si es cualquier otro día, retroceder al lunes de esta semana
+  const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return d.toISOString().split("T")[0];
 }
 
 function getWeekEnd(dateStr) {
   const d = new Date(dateStr + "T12:00:00");
-  // Fin de semana = domingo
   const day = d.getDay();
-  const diff = day === 0 ? 0 : 7 - day; // avanzar al domingo
+  // Si es domingo, ese mismo día es el fin de semana
+  // Si no, avanzar al próximo domingo
+  const diff = day === 0 ? 0 : 7 - day;
   d.setDate(d.getDate() + diff);
   return d.toISOString().split("T")[0];
 }
