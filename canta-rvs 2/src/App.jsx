@@ -133,6 +133,192 @@ function buildWhatsAppText(rep) {
   return lines.join("\n");
 }
 
+// ── Mapa de mesas ─────────────────────────────────────────────
+const MESA_COLORS = {
+  libre:    { bg: "#1e1210", border: "#3a2020", text: "#9a7878" },
+  ocupada:  { bg: "#5a1e1e", border: "#c94c4c", text: "#ff9999" },
+  reservada:{ bg: "#1a2a10", border: "#4a9e6a", text: "#7efbaa" },
+};
+
+// Tamaños basados en el croquis:
+// SM  = mesa individual pequeña (61, postes P)
+// MD  = mesa estándar (80,81,82,77,76,70,71,66,65)
+// LG  = mesa doble ancha (75, 72, 64, 62, 60)
+// XL  = mesa grande cuadrada (83, 74, 73, 63)
+// SEC = sección (30s, 40s, 50s — rectangulares altas)
+// PER = periquera redonda (P1–P10)
+
+const SIZES = {
+  SM:  { w: 52, h: 40 },
+  MD:  { w: 60, h: 46 },
+  LG:  { w: 84, h: 46 },
+  XL:  { w: 68, h: 62 },
+  SEC: { w: 54, h: 78 },
+  PER: { w: 36, h: 36, round: true },
+};
+
+function Mesa({ id, status, onToggle, size = "MD", canEdit = true }) {
+  const c = MESA_COLORS[status] || MESA_COLORS.libre;
+  const s = SIZES[size];
+  return (
+    <div
+      onClick={() => canEdit && onToggle(id)}
+      style={{
+        width: s.w, height: s.round ? s.w : s.h,
+        borderRadius: s.round ? "50%" : 10,
+        background: c.bg,
+        border: `2px solid ${c.border}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: canEdit ? "pointer" : "default",
+        userSelect: "none", transition: "all 0.18s", flexShrink: 0,
+        boxShadow: status !== "libre" ? `0 0 10px ${c.border}55` : "none",
+        opacity: canEdit ? 1 : 0.85,
+      }}>
+      <span style={{
+        fontSize: s.round ? 9 : (size === "XL" || size === "SEC" ? 12 : 11),
+        fontWeight: 700, color: c.text, textAlign: "center", lineHeight: 1.1,
+      }}>{id}</span>
+    </div>
+  );
+}
+
+function MapaMesas({ mesaStatus, onToggle, canEdit }) {
+  const libre     = Object.values(mesaStatus).filter(s => s === "libre").length;
+  const ocupada   = Object.values(mesaStatus).filter(s => s === "ocupada").length;
+  const reservada = Object.values(mesaStatus).filter(s => s === "reservada").length;
+  const m = (id, size) => <Mesa key={id} id={id} status={mesaStatus[id]} onToggle={onToggle} size={size} canEdit={canEdit} />;
+
+  const row = (children, mb = 10) => (
+    <div style={{ display: "flex", gap: 8, marginBottom: mb, alignItems: "center" }}>{children}</div>
+  );
+
+  return (
+    <div style={{ padding: "16px", paddingBottom: 100 }}>
+      {/* Header */}
+      <div style={{ marginBottom: 4 }}>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, fontStyle: "italic", color: "#f5e8e0" }}>Mapa de Mesas</div>
+        <div style={{ fontSize: 10, color: "#9a7878", letterSpacing: 1, marginTop: 2 }}>
+          {canEdit ? "Toca una mesa para cambiar su estado" : "Solo lectura · contacta a un supervisor para cambios"}
+        </div>
+      </div>
+      <div style={{ height: 1, background: "linear-gradient(90deg, #c9a84c66, transparent)", marginBottom: 14, marginTop: 8 }} />
+
+      {/* Leyenda */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {[
+          { status: "libre",     label: "Libre",     count: libre },
+          { status: "ocupada",   label: "Ocupada",   count: ocupada },
+          { status: "reservada", label: "Reservada", count: reservada },
+        ].map(s => {
+          const c = MESA_COLORS[s.status];
+          return (
+            <div key={s.status} style={{ display: "flex", alignItems: "center", gap: 6, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 20, padding: "5px 12px" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.border }} />
+              <span style={{ fontSize: 11, color: c.text, fontWeight: 600 }}>{s.label}</span>
+              <span style={{ fontSize: 11, color: c.text, opacity: 0.7 }}>{s.count}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── MEZCALERÍA (fila 80-83) ── */}
+      <div style={{ background: "#120808", borderRadius: 14, padding: "12px 14px", marginBottom: 10, border: "1px solid #2a1818" }}>
+        <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 10 }}>Mezcalería</div>
+        {row(<>
+          {m(80,"MD")}{m(81,"MD")}{m(82,"MD")}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+            {m(83,"XL")}
+            {m("P10","PER")}
+          </div>
+        </>, 0)}
+      </div>
+
+      {/* ── BARRA IZQUIERDA + SALÓN PRINCIPAL ── */}
+      <div style={{ background: "#120808", borderRadius: 14, padding: "12px 14px", marginBottom: 10, border: "1px solid #2a1818" }}>
+        <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 10 }}>Salón · Barra</div>
+
+        {/* Fila 77 76 75 | 74 + P9 */}
+        {row(<>
+          {m("P1","PER")}
+          <div style={{ marginLeft: 4, display: "flex", gap: 8 }}>
+            {m(77,"MD")}{m(76,"MD")}{m(75,"LG")}
+          </div>
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+            {m(74,"XL")}
+            {m("P9","PER")}
+          </div>
+        </>)}
+
+        <div style={{ height: 1, background: "#2a1818", margin: "6px 0 10px" }} />
+
+        {/* Fila 70 71 72 | 73 + P8 */}
+        {row(<>
+          <div style={{ width: SIZES.PER.w }} />
+          <div style={{ marginLeft: 4, display: "flex", gap: 8 }}>
+            {m(70,"MD")}{m(71,"MD")}{m(72,"LG")}
+          </div>
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+            {m(73,"XL")}
+            {m("P8","PER")}
+          </div>
+        </>)}
+
+        <div style={{ height: 1, background: "#2a1818", margin: "6px 0 10px" }} />
+
+        {/* Fila P2 | 66 65 64 | 63 + P7 */}
+        {row(<>
+          {m("P2","PER")}
+          <div style={{ marginLeft: 4, display: "flex", gap: 8 }}>
+            {m(66,"MD")}{m(65,"MD")}{m(64,"LG")}
+          </div>
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+            {m(63,"XL")}
+            {m("P7","PER")}
+          </div>
+        </>)}
+
+        <div style={{ height: 1, background: "#2a1818", margin: "6px 0 10px" }} />
+
+        {/* Fila 60 61 62 */}
+        {row(<>
+          <div style={{ width: SIZES.PER.w }} />
+          <div style={{ marginLeft: 4, display: "flex", gap: 8 }}>
+            {m(60,"LG")}{m(61,"SM")}{m(62,"LG")}
+          </div>
+        </>, 0)}
+      </div>
+
+      {/* ── ZONA BAJA: 50s 40s | P3-P6 | 30s ── */}
+      <div style={{ background: "#120808", borderRadius: 14, padding: "12px 14px", border: "1px solid #2a1818" }}>
+        <div style={{ fontSize: 9, letterSpacing: 2, color: "#9a7878", textTransform: "uppercase", marginBottom: 10 }}>Zona Baja</div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {m("50s","SEC")}{m("40s","SEC")}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+            {["P3","P4","P5","P6"].map(id => m(id,"PER"))}
+          </div>
+          {m("30s","SEC")}
+        </div>
+      </div>
+
+      {/* Liberar mesas — solo si puede editar */}
+      {canEdit && (
+        <div style={{ marginTop: 16, textAlign: "center" }}>
+          <button onClick={() => onToggle("__reset__")}
+            style={{ background: "none", border: "1px solid #3a2020", color: "#9a7878", borderRadius: 10, padding: "8px 20px", fontSize: 11, cursor: "pointer", letterSpacing: 1 }}>
+            ↺ Liberar todas las mesas
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState("list");
   const [reservaciones, setReservaciones] = useState([]);
@@ -147,6 +333,36 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [tab, setTab] = useState("lista");
   const [copied, setCopied] = useState(false);
+
+  // ── Estado de mesas ───────────────────────────────────────────
+  const MESAS_INIT = [
+    80,81,82,83,77,76,75,74,73,72,71,70,66,65,64,63,62,61,60,
+    "P1","P2","P3","P4","P5","P6","P7","P8","P9","P10",
+    "30s","40s","50s"
+  ].reduce((acc, id) => ({ ...acc, [id]: "libre" }), {});
+
+  const [mesaStatus, setMesaStatus] = useState(() => {
+    try {
+      const saved = localStorage.getItem("canta_mesas");
+      return saved ? JSON.parse(saved) : MESAS_INIT;
+    } catch { return MESAS_INIT; }
+  });
+
+  const toggleMesa = (id) => {
+    if (id === "__reset__") {
+      const reset = Object.keys(mesaStatus).reduce((acc, k) => ({ ...acc, [k]: "libre" }), {});
+      setMesaStatus(reset);
+      try { localStorage.setItem("canta_mesas", JSON.stringify(reset)); } catch {}
+      return;
+    }
+    setMesaStatus(prev => {
+      const states = ["libre", "ocupada", "reservada"];
+      const next = states[(states.indexOf(prev[id]) + 1) % states.length];
+      const updated = { ...prev, [id]: next };
+      try { localStorage.setItem("canta_mesas", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  };
 
   // ── Sistema de perfiles ───────────────────────────────────────
   const [perfil, setPerfil] = useState(null);
@@ -1149,12 +1365,22 @@ export default function App() {
         </div>
       )}
 
+      {/* ══ TAB MAPA ══════════════════════════════════════════════ */}
+      {tab === "mapa" && (
+        <MapaMesas mesaStatus={mesaStatus} onToggle={toggleMesa} canEdit={puede.checkAsistencia} />
+      )}
+
       {/* Bottom Nav */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#1a0a0a", borderTop: "1px solid #2a1818", display: "flex", padding: "10px 0 20px" }}>
         <button onClick={() => { setTab("lista"); setView("list"); }}
           style={{ flex: 1, background: "none", border: "none", color: tab === "lista" ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === "lista" ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
           <span style={{ fontSize: 20 }}>📋</span>
           Reservas
+        </button>
+        <button onClick={() => setTab("mapa")}
+          style={{ flex: 1, background: "none", border: "none", color: tab === "mapa" ? "#c9a84c" : "#9a7878", fontSize: 11, fontWeight: tab === "mapa" ? 600 : 400, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <span style={{ fontSize: 20 }}>🗺️</span>
+          Mapa
         </button>
         {puede.verReportes && (
           <button onClick={() => { setTab("reportes"); setView("list"); }}
