@@ -283,16 +283,16 @@ export default function App() {
     const semanaEnd = getWeekEnd(hoy);
 
     const deEstaSemana = reservaciones.filter(r => r.fecha >= semanaStart && r.fecha <= semanaEnd);
-    const llegaron = deEstaSemana.filter(r => r.llego === true);
+    const llegaron = deEstaSemana.filter(r => r.llego === true || r.llego === "true");
 
     if (deEstaSemana.length === 0) {
-      showToast("No hay reservaciones esta semana", "error");
+      showToast(`Sin reservas entre ${semanaStart} y ${semanaEnd}`, "error");
       setGenerando(false);
       return;
     }
 
     if (llegaron.length === 0) {
-      showToast("Ninguna reserva marcada como llegó", "error");
+      showToast(`${deEstaSemana.length} reservas encontradas pero ninguna palomeada`, "error");
       setGenerando(false);
       return;
     }
