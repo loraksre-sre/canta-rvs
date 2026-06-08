@@ -25,7 +25,8 @@ const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov
 const DAYS   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 
 function getTodayLocal() {
-  return new Date().toISOString().split("T")[0];
+  // Usar zona horaria de México (America/Mexico_City) para evitar desfase UTC
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
 }
 
 function formatDate(dateStr) {
@@ -60,7 +61,10 @@ function getWeekEnd(dateStr) {
   return d.toISOString().split("T")[0];
 }
 
-function isSunday() { return new Date().getDay() === 0; }
+function isSunday() {
+  const day = new Date().toLocaleDateString("en-US", { timeZone: "America/Mexico_City", weekday: "short" });
+  return day === "Sun";
+}
 
 function weekLabel(s, e) { return `${formatDate(s)} – ${formatDate(e)}`; }
 
