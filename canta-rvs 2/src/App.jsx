@@ -671,10 +671,20 @@ export default function App() {
       showToast("El corte solo se puede generar los domingos", "error");
       return;
     }
+    await ejecutarCorte(getTodayLocal());
+  }
+
+  // Genera corte para cualquier semana que tenga reservas sin corte
+  async function generarCorteManual(semanaStart, semanaEnd) {
     setGenerando(true);
-    const hoy = getTodayLocal();
-    const semanaStart = getWeekStart(hoy);
-    const semanaEnd = getWeekEnd(hoy);
+    await ejecutarCorte(semanaEnd);
+    setGenerando(false);
+  }
+
+  async function ejecutarCorte(fechaRef) {
+    setGenerando(true);
+    const semanaStart = getWeekStart(fechaRef);
+    const semanaEnd   = getWeekEnd(fechaRef);
 
     const deEstaSemana = reservaciones.filter(r => r.fecha >= semanaStart && r.fecha <= semanaEnd);
     const llegaron = deEstaSemana.filter(r => r.llego === true || r.llego === "true");
@@ -736,7 +746,7 @@ export default function App() {
       showToast("Error al generar corte", "error");
     }
     setGenerando(false);
-  }
+  } // fin ejecutarCorte
 
   // ── Export ────────────────────────────────────────────────────
   async function handleCopyText(rep) {
@@ -1243,6 +1253,42 @@ export default function App() {
             <div style={{ padding: "18px 16px" }}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Cortes Semanales</div>
               <div style={{ fontSize: 12, color: "#9a7878", marginBottom: 20 }}>Solo incluye reservas marcadas como llegaron</div>
+
+              {/* Semanas pendientes de corte — para Admin */}
+              {puede.generarCorte && (() => {
+                // Detectar semanas con reservas que no tienen corte generado
+                const semanasSinCorte = {};
+                reservaciones.forEach(r => {
+                  const ss = getWeekStart(r.fecha);
+                  const se = getWeekEnd(r.fecha);
+                  const hoy = getTodayLocal();
+                  // Solo mostrar semanas ya terminadas (el domingo ya pasó)
+                  if (se < hoy && !reportes.find(rep => rep.semanaStart === ss)) {
+                    if (!semanasSinCorte[ss]) semanasSinCorte[ss] = { ss, se, count: 0 };
+                    semanasSinCorte[ss].count++;
+                  }
+                });
+                const pendientes = Object.values(semanasSinCorte).sort((a,b) => b.ss.localeCompare(a.ss));
+                if (pendientes.length === 0) return null;
+                return (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 10, letterSpacing: 2, color: "#c94c4c", textTransform: "uppercase", marginBottom: 10 }}>⚠️ Semanas sin corte</div>
+                    {pendientes.map(p => (
+                      <div key={p.ss} style={{ background: "#2a1010", border: "1px solid #c94c4c44", borderRadius: 12, padding: "12px 16px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#f5e8e0" }}>{weekLabel(p.ss, p.se)}</div>
+                          <div style={{ fontSize: 11, color: "#9a7878", marginTop: 2 }}>{p.count} reservas pendientes</div>
+                        </div>
+                        <button onClick={() => generarCorteManual(p.ss, p.se)} disabled={generando}
+                          style={{ background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer" }}>
+                          {generando ? "..." : "Generar"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {puede.generarCorte && isSunday() && (
                 <button onClick={generarCorte} disabled={generando} style={{ width: "100%", padding: "14px", background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: generando ? "not-allowed" : "pointer", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   <span>{generando ? "Generando..." : "📊 Generar corte de esta semana"}</span>
