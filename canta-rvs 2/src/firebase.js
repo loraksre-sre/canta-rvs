@@ -10,6 +10,11 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDvkCZgnl9K7DaNstj0LlRQawitHi8stjQ",
@@ -22,6 +27,27 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const auth = getAuth(app);
+
+// ── Login por rol ────────────────────────────────────────────
+// Mapea cada perfil (staff/supervisor/admin) a una cuenta real de
+// Firebase Authentication. Esto es lo que permite que las reglas de
+// seguridad de Firestore verifiquen quién hace cada petición.
+const ROLE_CREDENTIALS = {
+  staff:      { email: "staff@canta.local",      password: "CantaStaff_2026!" },
+  supervisor: { email: "supervisor@canta.local",  password: "CantaSuper_2026!" },
+  admin:      { email: "admin@canta.local",       password: "CantaAdmin_2026!" },
+};
+
+export async function loginConRol(rol) {
+  const cred = ROLE_CREDENTIALS[rol];
+  if (!cred) throw new Error("Rol inválido");
+  await signInWithEmailAndPassword(auth, cred.email, cred.password);
+}
+
+export function logoutRol() {
+  return signOut(auth);
+}
 
 // ── Reservaciones ────────────────────────────────────────────
 export async function saveReservacion(reservacion) {
