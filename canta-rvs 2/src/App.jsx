@@ -7,6 +7,8 @@ import {
   saveReporte,
   saveMapa,
   subscribeMapa,
+  loginConRol,
+  logoutRol,
 } from "./firebase.js";
 
 const ROLES = [
@@ -540,6 +542,7 @@ export default function App() {
   const [perfil, setPerfil] = useState(null);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
+  const [pinLoading, setPinLoading] = useState(false);
 
   const PERFILES = { "1029": "staff", "2938": "supervisor", "3847": "admin" };
   const puede = {
@@ -607,14 +610,22 @@ export default function App() {
     return e;
   }
 
-  function handlePinSubmit() {
+  async function handlePinSubmit() {
     const p = PERFILES[pinInput];
-    if (p) {
+    if (!p) {
+      setPinError(true);
+      setPinInput("");
+      return;
+    }
+    setPinLoading(true);
+    try {
+      await loginConRol(p);
       setPerfil(p);
       setPinError(false);
-      setPinInput("");
-    } else {
+    } catch {
       setPinError(true);
+    } finally {
+      setPinLoading(false);
       setPinInput("");
     }
   }
@@ -930,9 +941,9 @@ export default function App() {
         />
         {pinError && <div style={{ color: "#5a1e1e", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>PIN incorrecto</div>}
 
-        <button onClick={handlePinSubmit}
-          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px #7a303044" }}>
-          Entrar
+        <button onClick={handlePinSubmit} disabled={pinLoading}
+          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: pinLoading ? "default" : "pointer", boxShadow: "0 2px 10px #7a303044", opacity: pinLoading ? 0.7 : 1 }}>
+          {pinLoading ? "Entrando..." : "Entrar"}
         </button>
 
         {/* Perfiles hint */}
@@ -965,7 +976,7 @@ export default function App() {
               <div style={{ fontSize: 10, fontWeight: 600, color: PERFIL_COLOR[perfil], background: PERFIL_COLOR[perfil] + "22", border: "1px solid " + PERFIL_COLOR[perfil] + "66", borderRadius: 20, padding: "2px 10px" }}>
                 {PERFIL_LABEL[perfil]}
               </div>
-              <button onClick={() => { setPerfil(null); setPinInput(""); }} style={{ background: "none", border: "none", fontSize: 10, color: "#9a7878", cursor: "pointer", padding: 0 }}>Salir</button>
+              <button onClick={() => { logoutRol().catch(() => {}); setPerfil(null); setPinInput(""); }} style={{ background: "none", border: "none", fontSize: 10, color: "#9a7878", cursor: "pointer", padding: 0 }}>Salir</button>
             </div>
           </div>
         </div>
