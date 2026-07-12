@@ -106,35 +106,118 @@ function RoleBar({ reservaciones }) {
   );
 }
 
+// Agrupa registradas + no llegadas por iniciales (con fallback para reportes viejos)
+function getByIniciales(rep) {
+  if (rep.byIniciales) return rep.byIniciales;
+  const m = {};
+  const add = (r, llego) => {
+    const ini = (r.iniciales || "?").toUpperCase();
+    if (!m[ini]) m[ini] = { registradas: 0, llegaron: 0, noLlegaron: 0, personas: 0 };
+    m[ini].registradas++;
+    if (llego) { m[ini].llegaron++; m[ini].personas += r.personas; }
+    else m[ini].noLlegaron++;
+  };
+  (rep.reservaciones || []).forEach(r => add(r, true));
+  (rep.noLlegaron || []).forEach(r => add(r, false));
+  return m;
+}
+
 function buildWhatsAppText(rep) {
   const roleEmoji = { socio: "🥂", rp: "💜", team: "🟢", instagram: "📸" };
-  const lines = [];
-  lines.push(`📊 *CORTE SEMANAL — ${rep.label}*`);
-  lines.push(`_Generado el ${new Date(rep.generadoEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}_`);
-  lines.push("");
-  lines.push(`📌 *Total: ${rep.totalReservas} reservas · ${rep.totalPersonas} personas*`);
-  lines.push("");
-  lines.push("*Por categoría:*");
+  const SEP = "━━━━━━━━━━━━━━";
+  const noLleg = rep.noLlegaron || [];
+  const registradas = rep.totalRegistradas || rep.totalReservas;
+  const pct = registradas > 0 ? Math.round((rep.totalReservas / registradas) * 100) : 100;
+  const byIni = getByIniciales(rep);
+  const L = [];
+
+  // ── Encabezado ──
+  L.push(`📊 *CORTE SEMANAL*`);
+  L.push(`*${rep.label}*`);
+  L.push(`_Generado el ${new Date(rep.generadoEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}_`);
+  L.push("");
+
+  // ── Resumen ──
+  L.push(SEP);
+  L.push(`*RESUMEN*`);
+  L.push(`📝 Registradas: *${registradas}*`);
+  L.push(`✅ Llegaron: *${rep.totalReservas}*  (${pct}%)`);
+  if (registradas - rep.totalReservas > 0)
+    L.push(`❌ No llegaron: *${registradas - rep.totalReservas}*`);
+  L.push(`👥 Personas atendidas: *${rep.totalPersonas}*`);
+  L.push("");
+
+  // ── Por día ──
+  L.push(SEP);
+  L.push(`*POR DÍA*`);
+  Object.keys(rep.byDay).sort().forEach(fecha => {
+    const d = rep.byDay[fecha];
+    L.push(`📅 ${formatDate(fecha)} — ${d.count} res · ${d.personas} pers`);
+  });
+  L.push("");
+
+  // ── Por categoría ──
+  L.push(SEP);
+  L.push(`*POR CATEGORÍA*`);
   ROLES.forEach(role => {
     const d = rep.byRole[role.id];
     if (d && d.count > 0)
-      lines.push(`${roleEmoji[role.id]} ${role.label}: ${d.count} reservas · ${d.personas} personas`);
+      L.push(`${roleEmoji[role.id]} ${role.label} — ${d.count} res · ${d.personas} pers`);
   });
-  lines.push("");
-  lines.push("*Por día:*");
-  Object.keys(rep.byDay).sort().forEach(fecha => {
-    const d = rep.byDay[fecha];
-    lines.push(`📅 ${formatDate(fecha)}: ${d.count} res · ${d.personas} p`);
-  });
-  lines.push("");
-  lines.push("*Detalle:*");
-  rep.reservaciones.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre)).forEach(r => {
+  L.push("");
+
+  // ── Por iniciales (A-Z) ──
+  const iniciales = Object.keys(byIni).sort((a, b) => a.localeCompare(b));
+  if (iniciales.length > 0) {
+    L.push(SEP);
+    L.push(`*POR INICIALES (A-Z)*`);
+    L.push(`_registradas → llegaron / no llegaron_`);
+    iniciales.forEach(ini => {
+      const d = byIni[ini];
+      const p = d.registradas > 0 ? Math.round((d.llegaron / d.registradas) * 100) : 0;
+      const alerta = d.registradas >= 3 && p < 50 ? " ⚠️" : "";
+      L.push(`• *${ini}*: ${d.registradas} reg → ✅${d.llegaron} / ❌${d.noLlegaron}  (${p}%)${alerta}`);
+    });
+    L.push("");
+  }
+
+  // ── Detalle de asistentes, agrupado por día ──
+  L.push(SEP);
+  L.push(`*DETALLE — SÍ LLEGARON* ✅`);
+  const asistentes = [...rep.reservaciones].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre));
+  let diaActual = null;
+  asistentes.forEach(r => {
+    if (r.fecha !== diaActual) {
+      diaActual = r.fecha;
+      L.push("");
+      L.push(`📅 *${formatDate(r.fecha)}*`);
+    }
     const roleLabel = ROLES.find(x => x.id === r.rol)?.label || r.rol;
-    lines.push(`• ${formatDate(r.fecha)} | ${r.nombre} | 👤${r.personas} | ${r.iniciales} (${roleLabel})`);
+    L.push(`   ✅ ${r.nombre}${r.vip ? " ⭐" : ""} · 👤${r.personas} · ${r.iniciales} (${roleLabel})`);
   });
-  lines.push("");
-  lines.push("_Canta Corazón Gto · Rvs_");
-  return lines.join("\n");
+  L.push("");
+
+  // ── Detalle de no llegadas ──
+  if (noLleg.length > 0) {
+    L.push(SEP);
+    L.push(`*DETALLE — NO LLEGARON* ❌`);
+    const perdidas = [...noLleg].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre));
+    diaActual = null;
+    perdidas.forEach(r => {
+      if (r.fecha !== diaActual) {
+        diaActual = r.fecha;
+        L.push("");
+        L.push(`📅 *${formatDate(r.fecha)}*`);
+      }
+      const roleLabel = ROLES.find(x => x.id === r.rol)?.label || r.rol;
+      L.push(`   ❌ ${r.nombre}${r.vip ? " ⭐" : ""} · 👤${r.personas} · ${r.iniciales} (${roleLabel})`);
+    });
+    L.push("");
+  }
+
+  L.push(SEP);
+  L.push(`_Canta Corazón Gto · Rvs_`);
+  return L.join("\n");
 }
 
 // ── Mapa de mesas ─────────────────────────────────────────────
@@ -153,7 +236,7 @@ const SIZES = {
   DIA: { w: 54, h: 54, round: false, diamond: true },
 };
 
-function Mesa({ id, status, onToggle, size = "MD", canEdit = true, piso = 1 }) {
+function Mesa({ id, status, onToggle, size = "MD", canEdit = true, piso = 1, nombre }) {
   const c = MESA_COLORS[status] || MESA_COLORS.libre;
   const s = SIZES[size];
   const isDiamond = s.diamond;
@@ -169,12 +252,18 @@ function Mesa({ id, status, onToggle, size = "MD", canEdit = true, piso = 1 }) {
         userSelect: "none", transition: "all 0.18s", flexShrink: 0,
         boxShadow: status !== "libre" ? `0 0 10px ${c.border}55` : "none",
       }}>
-        <span style={{
-          fontSize: s.round ? 9 : 11,
-          fontWeight: 700, color: c.text, textAlign: "center", lineHeight: 1.1,
-          transform: isDiamond ? "rotate(-45deg)" : "none",
-          display: "block",
-        }}>{id}</span>
+        <div style={{ transform: isDiamond ? "rotate(-45deg)" : "none", display: "flex", flexDirection: "column", alignItems: "center", maxWidth: s.w - 6 }}>
+          <span style={{
+            fontSize: nombre ? (s.round ? 8 : 10) : (s.round ? 9 : 11),
+            fontWeight: 700, color: c.text, textAlign: "center", lineHeight: 1.1,
+            display: "block",
+          }}>{id}</span>
+          {nombre && (
+            <span style={{ fontSize: s.round ? 6 : 7, fontWeight: 600, color: "#f5c04c", maxWidth: s.w - 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", lineHeight: 1.2 }}>
+              {nombre}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -226,9 +315,24 @@ function CuartoCapacidad({ id, label, data, onUpdate, canEdit }) {
   );
 }
 
-function MapaMesas({ mesaStatusP1, mesaStatusP2, cuartos, onToggle, onUpdateCuarto, onResetCuartos, canEdit, pisoActivo, setPisoActivo }) {
+function MapaMesas({ mesaStatusP1, mesaStatusP2, mesaNombres, cuartos, onToggle, onAsignar, onUpdateCuarto, onResetCuartos, canEdit, canAsignar, reservasFuturas, pisoActivo, setPisoActivo }) {
   const statusP1 = mesaStatusP1 || {};
   const statusP2 = mesaStatusP2 || {};
+  const nombres = mesaNombres || {};
+
+  // Modo asignar reserva a mesa (solo admin)
+  const [asignando, setAsignando] = useState(false);
+  const [mesaSel, setMesaSel] = useState(null); // { id, piso }
+  const [nombreCustom, setNombreCustom] = useState("");
+
+  const handleMesaClick = (id, piso) => {
+    if (asignando && canAsignar) {
+      setMesaSel({ id, piso });
+      setNombreCustom("");
+    } else {
+      onToggle(id, piso);
+    }
+  };
 
   const countStatus = (status, obj) => Object.values(obj).filter(s => s === status).length;
   const libre1 = countStatus("libre", statusP1);
@@ -238,19 +342,32 @@ function MapaMesas({ mesaStatusP1, mesaStatusP2, cuartos, onToggle, onUpdateCuar
   const ocupada2 = countStatus("ocupada", statusP2);
   const reservada2 = countStatus("reservada", statusP2);
 
-  const m1 = (id, size) => <Mesa key={id} id={id} status={statusP1[id]} onToggle={onToggle} size={size} canEdit={canEdit} piso={1} />;
-  const m2 = (id, size) => <Mesa key={id} id={id} status={statusP2[id]} onToggle={onToggle} size={size || "DIA"} canEdit={canEdit} piso={2} />;
+  const m1 = (id, size) => <Mesa key={id} id={id} status={statusP1[id]} onToggle={handleMesaClick} size={size} canEdit={canEdit || (asignando && canAsignar)} piso={1} nombre={nombres[`1-${id}`]} />;
+  const m2 = (id, size) => <Mesa key={id} id={id} status={statusP2[id]} onToggle={handleMesaClick} size={size || "DIA"} canEdit={canEdit || (asignando && canAsignar)} piso={2} nombre={nombres[`2-${id}`]} />;
 
   return (
     <div style={{ padding: "16px", paddingBottom: 100 }}>
       {/* Header */}
       <div style={{ marginBottom: 4 }}>
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, fontStyle: "italic", color: "#f5e8e0" }}>Mapa de Mesas</div>
-        <div style={{ fontSize: 10, color: "#9a7878", letterSpacing: 1, marginTop: 2 }}>
-          {canEdit ? "Toca una mesa para cambiar su estado" : "Solo lectura"}
+        <div style={{ fontSize: 10, color: asignando ? "#c9a84c" : "#9a7878", letterSpacing: 1, marginTop: 2 }}>
+          {asignando ? "📌 Toca una mesa para asignarle una reserva" : canEdit ? "Toca una mesa para cambiar su estado" : "Solo lectura"}
         </div>
       </div>
       <div style={{ height: 1, background: "linear-gradient(90deg, #c9a84c66, transparent)", marginBottom: 14, marginTop: 8 }} />
+
+      {/* Modo asignar (solo admin) */}
+      {canAsignar && (
+        <button onClick={() => { setAsignando(a => !a); setMesaSel(null); }} style={{
+          width: "100%", marginBottom: 14, padding: "12px", borderRadius: 12,
+          border: `1.5px solid ${asignando ? "#c9a84c" : "#3a2020"}`,
+          background: asignando ? "#c9a84c22" : "#1e1210",
+          color: asignando ? "#c9a84c" : "#9a7878",
+          fontSize: 13, fontWeight: 700, cursor: "pointer",
+        }}>
+          {asignando ? "✓ Modo asignar activo — toca la mesa que quieres apartar" : "📌 Asignar reservas a mesas"}
+        </button>
+      )}
 
       {/* Selector de piso */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -435,6 +552,75 @@ function MapaMesas({ mesaStatusP1, mesaStatusP2, cuartos, onToggle, onUpdateCuar
           )}
         </div>
       )}
+
+      {/* ══════════ MODAL: ASIGNAR RESERVA A MESA ══════════ */}
+      {mesaSel && (() => {
+        const key = `${mesaSel.piso}-${mesaSel.id}`;
+        const nombreActual = nombres[key];
+        const asignar = (nombre) => { onAsignar(mesaSel.piso, mesaSel.id, nombre); setMesaSel(null); };
+        return (
+          <div onClick={() => setMesaSel(null)} style={{ position: "fixed", inset: 0, background: "#000000aa", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#1a0a0a", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 520, maxHeight: "78vh", overflowY: "auto", padding: "22px 18px 34px", border: "1px solid #3a2020", borderBottom: "none" }}>
+              {/* Header modal */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 19, fontWeight: 700, color: "#f5e8e0" }}>
+                  Mesa {mesaSel.id} · {mesaSel.piso === 1 ? "Planta Baja" : "2do Piso"}
+                </div>
+                <button onClick={() => setMesaSel(null)} style={{ background: "none", border: "none", color: "#9a7878", fontSize: 20, cursor: "pointer", padding: 4 }}>✕</button>
+              </div>
+              <div style={{ fontSize: 11, color: "#9a7878", marginBottom: 16 }}>Elige la reserva a la que le guardas esta mesa</div>
+
+              {/* Asignación actual */}
+              {nombreActual && (
+                <div style={{ background: "#2a2010", border: "1px solid #c9a84c55", borderRadius: 12, padding: "12px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>📌</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: "#9a7878", textTransform: "uppercase", letterSpacing: 1 }}>Apartada para</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#f5c04c" }}>{nombreActual}</div>
+                  </div>
+                  <button onClick={() => asignar(null)} style={{ background: "#2a1010", border: "1px solid #c94c4c66", color: "#ff9999", borderRadius: 9, padding: "8px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                    Liberar
+                  </button>
+                </div>
+              )}
+
+              {/* Nombre libre */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+                <input value={nombreCustom} onChange={e => setNombreCustom(e.target.value)} placeholder="Escribir nombre..."
+                  style={{ flex: 1, background: "#1e1210", border: "1px solid #3a2020", borderRadius: 10, padding: "11px 14px", color: "#f5e8e0", fontSize: 14, outline: "none", boxSizing: "border-box", minWidth: 0 }} />
+                <button onClick={() => nombreCustom.trim() && asignar(nombreCustom.trim())} disabled={!nombreCustom.trim()}
+                  style={{ background: nombreCustom.trim() ? "#c9a84c" : "#3a3020", color: "#1a0a0a", border: "none", borderRadius: 10, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: nombreCustom.trim() ? "pointer" : "not-allowed" }}>
+                  Apartar
+                </button>
+              </div>
+
+              {/* Lista de reservas próximas */}
+              <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#9a7878", textTransform: "uppercase", marginBottom: 10 }}>O elige de las reservas registradas</div>
+              {(reservasFuturas || []).length === 0 ? (
+                <div style={{ fontSize: 12, color: "#7a5050", fontStyle: "italic", padding: "10px 0" }}>No hay reservas próximas registradas</div>
+              ) : (
+                (reservasFuturas || []).map(r => {
+                  const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
+                  return (
+                    <div key={r.id} onClick={() => asignar(r.nombre)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", marginBottom: 7, background: r.vip ? "#241c0c" : "#1e1210", border: `1px solid ${r.vip ? "#c9a84c66" : "#2a1818"}`, borderRadius: 12, cursor: "pointer" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: r.vip ? "#f5c04c" : "#f5e8e0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.vip ? "⭐ " : ""}{r.nombre}
+                        </div>
+                        <div style={{ fontSize: 10, color: "#9a7878", marginTop: 2 }}>{formatDate(r.fecha)} · 👤{r.personas} · {r.iniciales}</div>
+                      </div>
+                      <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}`, whiteSpace: "nowrap" }}>
+                        {ROLES.find(x => x.id === r.rol)?.label}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -474,6 +660,7 @@ export default function App() {
 
   const [mesaStatusP1, setMesaStatusP1] = useState(MESAS_P1_DEFAULT);
   const [mesaStatusP2, setMesaStatusP2] = useState(MESAS_P2_DEFAULT);
+  const [mesaNombres, setMesaNombres]   = useState({});
   const [cuartos, setCuartos]           = useState(CUARTOS_DEFAULT);
   const [pisoActivo, setPisoActivo]     = useState(1);
 
@@ -487,8 +674,30 @@ export default function App() {
     const u1 = subscribeMapa("p1", data => { if (data) setMesaStatusP1(data); });
     const u2 = subscribeMapa("p2", data => { if (data) setMesaStatusP2(data); });
     const u3 = subscribeMapa("cuartos", data => { if (data) setCuartos(data); });
-    return () => { u1(); u2(); u3(); };
+    const u4 = subscribeMapa("nombres", data => { if (data) setMesaNombres(data); });
+    return () => { u1(); u2(); u3(); u4(); };
   }, []);
+
+  // Asignar/liberar una mesa con el nombre de una reserva (admin)
+  const asignarMesa = (piso, id, nombre) => {
+    const key = `${piso}-${id}`;
+    setMesaNombres(prev => {
+      const updated = { ...prev };
+      if (nombre) updated[key] = nombre;
+      else delete updated[key];
+      saveMapa("nombres", updated).catch(() => {});
+      return updated;
+    });
+    // Al asignar pasa a "reservada"; al liberar vuelve a "libre"
+    const setter = piso === 1 ? setMesaStatusP1 : setMesaStatusP2;
+    const tipo   = piso === 1 ? "p1" : "p2";
+    setter(prev => {
+      const updated = { ...prev, [id]: nombre ? "reservada" : "libre" };
+      saveMapa(tipo, updated).catch(() => {});
+      return updated;
+    });
+    showToast(nombre ? `📌 Mesa ${id} apartada para ${nombre}` : `Mesa ${id} liberada`);
+  };
 
   const toggleMesa = (id, piso = 1) => {
     if (id === "__reset__") {
@@ -499,6 +708,12 @@ export default function App() {
         setMesaStatusP2(MESAS_P2_DEFAULT);
         saveMapa("p2", MESAS_P2_DEFAULT).catch(() => {});
       }
+      // También limpia los nombres de ese piso
+      setMesaNombres(prev => {
+        const updated = Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${piso}-`)));
+        saveMapa("nombres", updated).catch(() => {});
+        return updated;
+      });
       return;
     }
     if (piso === 1) {
@@ -553,11 +768,13 @@ export default function App() {
     verReportes:     perfil === "supervisor" || perfil === "admin",
     verDashboard:    perfil === "admin",
     generarCorte:    perfil === "admin",
+    marcarVip:       perfil === "admin",
+    asignarMesa:     perfil === "admin",
   };
   const PERFIL_LABEL = { staff: "👤 Staff", supervisor: "👥 Supervisor", admin: "👑 Admin" };
   const PERFIL_COLOR = { staff: "#c9a84c", supervisor: "#7c6fff", admin: "#e1306c" };
 
-  const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "" });
+  const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", vip: false });
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -642,18 +859,35 @@ export default function App() {
       iniciales: form.iniciales.trim().toUpperCase(),
       rol: form.rol,
       llego: false,
+      vip: puede.marcarVip && form.vip === true,
       createdAt: new Date().toISOString(),
     };
     try {
       await saveReservacion(nueva);
-      setForm({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "" });
+      setForm({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", vip: false });
       setErrors({});
       setView("list");
-      showToast("Reservación guardada ✓");
+      showToast(nueva.vip ? "⭐ Reservación VIP guardada ✓" : "Reservación guardada ✓");
     } catch {
       showToast("Error al guardar", "error");
     }
     setSaving(false);
+  }
+
+  // ── Marcar/quitar VIP (solo admin) ───────────────────────────
+  async function toggleVip(r) {
+    if (!puede.marcarVip) {
+      showToast("Solo el administrador puede marcar VIP", "error");
+      return;
+    }
+    const updated = { ...r, vip: !r.vip };
+    try {
+      await saveReservacion(updated);
+      setSelected(updated);
+      showToast(updated.vip ? "⭐ Marcada como VIP" : "VIP quitado");
+    } catch {
+      showToast("Error al actualizar", "error");
+    }
   }
 
   async function handleDelete(id, creadoPor) {
@@ -732,6 +966,23 @@ export default function App() {
       byDay[r.fecha].personas += r.personas;
     });
 
+    // Reservas que NO llegaron (para medir fantasmas)
+    const noLlegaron = deEstaSemana.filter(r => !(r.llego === true || r.llego === "true"));
+
+    // Desglose por iniciales: registradas vs llegaron vs no llegaron
+    const byIniciales = {};
+    deEstaSemana.forEach(r => {
+      const ini = (r.iniciales || "?").toUpperCase();
+      if (!byIniciales[ini]) byIniciales[ini] = { registradas: 0, llegaron: 0, noLlegaron: 0, personas: 0 };
+      byIniciales[ini].registradas++;
+      if (r.llego === true || r.llego === "true") {
+        byIniciales[ini].llegaron++;
+        byIniciales[ini].personas += r.personas;
+      } else {
+        byIniciales[ini].noLlegaron++;
+      }
+    });
+
     const reporte = {
       id: Date.now().toString(),
       semanaStart,
@@ -742,7 +993,9 @@ export default function App() {
       totalRegistradas: deEstaSemana.length,
       byRole,
       byDay,
+      byIniciales,
       reservaciones: llegaron,
+      noLlegaron,
       generadoEl: new Date().toISOString(),
     };
 
@@ -769,6 +1022,90 @@ export default function App() {
       setTimeout(() => setCopied(false), 3000);
     } catch {
       window.prompt("Copia este texto:", text);
+    }
+  }
+
+  // ── Exportar reporte a Excel (.xlsx) ─────────────────────────
+  async function handleDownloadExcel(rep) {
+    try {
+      showToast("Generando Excel...");
+      const XLSX = await import(/* @vite-ignore */ "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+
+      const registradas = rep.totalRegistradas || rep.totalReservas;
+      const noLleg = rep.noLlegaron || [];
+      const pct = registradas > 0 ? Math.round((rep.totalReservas / registradas) * 100) : 100;
+      const roleName = id => ROLES.find(x => x.id === id)?.label || id;
+      const wb = XLSX.utils.book_new();
+
+      // ── Hoja 1: Resumen ──
+      const resumen = [
+        ["CANTA CORAZÓN GTO · CORTE SEMANAL"],
+        ["Semana", rep.label],
+        ["Generado", new Date(rep.generadoEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })],
+        [],
+        ["RESUMEN"],
+        ["Reservas registradas", registradas],
+        ["Llegaron", rep.totalReservas],
+        ["No llegaron", registradas - rep.totalReservas],
+        ["% Asistencia", pct + "%"],
+        ["Personas atendidas", rep.totalPersonas],
+        [],
+        ["POR DÍA"],
+        ["Fecha", "Reservas", "Personas"],
+        ...Object.keys(rep.byDay).sort().map(f => [formatDate(f), rep.byDay[f].count, rep.byDay[f].personas]),
+        [],
+        ["POR CATEGORÍA"],
+        ["Categoría", "Reservas", "Personas"],
+        ...ROLES.filter(r => rep.byRole[r.id] && rep.byRole[r.id].count > 0)
+          .map(r => [r.label, rep.byRole[r.id].count, rep.byRole[r.id].personas]),
+      ];
+      const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
+      wsResumen["!cols"] = [{ wch: 24 }, { wch: 14 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+      // ── Hoja 2: Por iniciales (A-Z) ──
+      const byIni = getByIniciales(rep);
+      const filasIni = Object.keys(byIni).sort((a, b) => a.localeCompare(b)).map(ini => {
+        const d = byIni[ini];
+        const p = d.registradas > 0 ? Math.round((d.llegaron / d.registradas) * 100) : 0;
+        return [ini, d.registradas, d.llegaron, d.noLlegaron, p + "%", d.registradas >= 3 && p < 50 ? "⚠️ Revisar" : ""];
+      });
+      const wsIni = XLSX.utils.aoa_to_sheet([
+        ["Iniciales", "Registradas", "Llegaron", "No llegaron", "% Asistencia", "Alerta"],
+        ...filasIni,
+      ]);
+      wsIni["!cols"] = [{ wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsIni, "Por iniciales");
+
+      // ── Hoja 3: Sí llegaron ──
+      const llegaronRows = [...rep.reservaciones]
+        .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre))
+        .map(r => [formatDate(r.fecha), r.nombre, r.personas, r.iniciales, roleName(r.rol), r.vip ? "⭐ VIP" : ""]);
+      const wsLleg = XLSX.utils.aoa_to_sheet([
+        ["Fecha", "Nombre", "Personas", "Registró", "Categoría", "VIP"],
+        ...llegaronRows,
+      ]);
+      wsLleg["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 9 }, { wch: 9 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsLleg, "Sí llegaron");
+
+      // ── Hoja 4: No llegaron ──
+      if (noLleg.length > 0) {
+        const noLlegRows = [...noLleg]
+          .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre))
+          .map(r => [formatDate(r.fecha), r.nombre, r.personas, r.iniciales, roleName(r.rol), r.vip ? "⭐ VIP" : ""]);
+        const wsNo = XLSX.utils.aoa_to_sheet([
+          ["Fecha", "Nombre", "Personas", "Registró", "Categoría", "VIP"],
+          ...noLlegRows,
+        ]);
+        wsNo["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 9 }, { wch: 9 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsNo, "No llegaron");
+      }
+
+      XLSX.writeFile(wb, `corte-${rep.semanaStart}.xlsx`);
+      showToast("Excel descargado ✓");
+    } catch (e) {
+      console.error(e);
+      showToast("Error al generar Excel — revisa tu conexión", "error");
     }
   }
 
@@ -1139,19 +1476,21 @@ export default function App() {
                                 <div
                                   onClick={() => { setSelected(r); setView("detail"); }}
                                   style={{
-                                    flex: 1, background: r.llego ? "#0f1a12" : "#1e1210",
-                                    border: "1px solid #2a1818",
-                                    borderLeft: `3px solid ${r.llego ? "#4fc9a8" : rc.border}`,
+                                    flex: 1, background: r.vip && !r.llego ? "#241a08" : r.llego ? "#0f1a12" : "#1e1210",
+                                    border: r.vip ? "1px solid #f5c04c66" : "1px solid #2a1818",
+                                    borderLeft: `3px solid ${r.vip ? "#f5c04c" : r.llego ? "#4fc9a8" : rc.border}`,
                                     borderRadius: 12, padding: "11px 13px", cursor: "pointer",
                                     display: "flex", alignItems: "center", gap: 10,
-                                    opacity: r.llego ? 1 : 0.85,
+                                    opacity: r.llego ? 1 : r.vip ? 1 : 0.85,
+                                    boxShadow: r.vip ? "0 0 12px #f5c04c22" : "none",
                                   }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: r.llego ? "#7efbaa" : "#f5e8e0" }}>
-                                      {r.nombre}
+                                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: r.llego ? "#7efbaa" : r.vip ? "#f5c04c" : "#f5e8e0" }}>
+                                      {r.vip ? "⭐ " : ""}{r.nombre}
                                     </div>
                                     <div style={{ fontSize: 11, color: "#a07878", marginTop: 2 }}>
                                       👤 {r.personas} · <span style={{ color: rc.text }}>{r.iniciales}</span>
+                                      {r.vip && <span style={{ color: "#f5c04c", marginLeft: 6, fontWeight: 700 }}>VIP</span>}
                                     </div>
                                   </div>
                                   <div style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}`, whiteSpace: "nowrap" }}>
@@ -1215,6 +1554,19 @@ export default function App() {
                 </div>
                 {errors.rol && <div style={{ color: "#c94c4c", fontSize: 11, marginTop: 5 }}>{errors.rol}</div>}
               </div>
+              {puede.marcarVip && (
+                <button onClick={() => setForm(f => ({ ...f, vip: !f.vip }))} style={{
+                  width: "100%", marginBottom: 26, padding: "13px", borderRadius: 12,
+                  border: `1.5px solid ${form.vip ? "#f5c04c" : "#3a2020"}`,
+                  background: form.vip ? "#f5c04c22" : "#1e1210",
+                  color: form.vip ? "#f5c04c" : "#666",
+                  fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}>
+                  <span style={{ fontSize: 16 }}>⭐</span>
+                  {form.vip ? "Reserva VIP / Importante ✓" : "Marcar como VIP / Importante"}
+                </button>
+              )}
               <button onClick={handleSubmit} disabled={saving} style={{ width: "100%", padding: "15px", background: saving ? "#5a4a1a" : "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
                 {saving ? "Guardando..." : "Guardar Reservación"}
               </button>
@@ -1228,10 +1580,13 @@ export default function App() {
             return (
               <div style={{ padding: "18px 16px" }}>
                 <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#a07878", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 22 }}>← Volver</button>
-                <div style={{ background: "#1e1210", borderRadius: 16, border: `1px solid ${rc.border}44`, overflow: "hidden", marginBottom: 18 }}>
+                <div style={{ background: "#1e1210", borderRadius: 16, border: `1px solid ${r.vip ? "#f5c04c66" : rc.border + "44"}`, overflow: "hidden", marginBottom: 18, boxShadow: r.vip ? "0 0 16px #f5c04c22" : "none" }}>
                   <div style={{ background: rc.bg, padding: "18px 20px 14px", borderBottom: `1px solid ${rc.border}33` }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.5, color: rc.text, textTransform: "uppercase", marginBottom: 6 }}>{ROLES.find(x => x.id === r.rol)?.label}</div>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700 }}>{r.nombre}</div>
+                    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.5, color: rc.text, textTransform: "uppercase", marginBottom: 6 }}>
+                      {ROLES.find(x => x.id === r.rol)?.label}
+                      {r.vip && <span style={{ color: "#f5c04c", marginLeft: 8 }}>· ⭐ VIP</span>}
+                    </div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: r.vip ? "#f5c04c" : undefined }}>{r.vip ? "⭐ " : ""}{r.nombre}</div>
                   </div>
                   <div style={{ padding: "18px 20px" }}>
                     {[
@@ -1239,14 +1594,21 @@ export default function App() {
                       { icon: "👥", label: "Personas", val: r.personas },
                       { icon: "✍️", label: "Registrado por", val: r.iniciales },
                       { icon: r.llego ? "✅" : "⏳", label: "Asistencia", val: r.llego ? "Llegó" : "Pendiente" },
+                      ...(r.vip ? [{ icon: "⭐", label: "Prioridad", val: "VIP / Importante" }] : []),
                     ].map(item => (
                       <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid #2a1818", fontSize: 14 }}>
                         <span style={{ color: "#a07878" }}>{item.icon} {item.label}</span>
-                        <span style={{ fontWeight: 600, color: item.label === "Asistencia" ? (r.llego ? "#4fc9a8" : "#888") : "#f5e8e0" }}>{item.val}</span>
+                        <span style={{ fontWeight: 600, color: item.label === "Asistencia" ? (r.llego ? "#4fc9a8" : "#888") : item.label === "Prioridad" ? "#f5c04c" : "#f5e8e0" }}>{item.val}</span>
                       </div>
                     ))}
                   </div>
                 </div>
+                {puede.marcarVip && (
+                  <button onClick={() => toggleVip(r)}
+                    style={{ width: "100%", padding: "13px", marginBottom: 10, background: r.vip ? "#f5c04c18" : "transparent", color: "#f5c04c", border: "1px solid #f5c04c55", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                    {r.vip ? "Quitar marca VIP" : "⭐ Marcar como VIP / Importante"}
+                  </button>
+                )}
                 <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id, r.iniciales); }}
                   style={{ width: "100%", padding: "13px", background: "transparent", color: "#c94c4c", border: "1px solid #c94c4c44", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                   Eliminar reservación
@@ -1351,7 +1713,7 @@ export default function App() {
                 <div style={{ fontSize: 11, color: "#8a6868", marginBottom: 18 }}>
                   Generado el {new Date(rep.generadoEl).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
                 </div>
-                <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
+                <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
                   <button onClick={() => handleCopyText(rep)} style={{ flex: 1, padding: "12px 10px", background: copied ? "#1a3d2a" : "#1e1210", border: `1px solid ${copied ? "#4a9e6a" : "#3a2020"}`, borderRadius: 12, color: copied ? "#a0e8b8" : "#aaa", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, transition: "all 0.2s" }}>
                     <span style={{ fontSize: 16 }}>{copied ? "✓" : "💬"}</span>
                     {copied ? "¡Copiado!" : "Copiar para WhatsApp"}
@@ -1361,15 +1723,72 @@ export default function App() {
                     Descargar imagen
                   </button>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-                  <StatCard val={rep.totalReservas} label="Asistieron" color="#4fc9a8" />
-                  <StatCard val={rep.totalPersonas} label="Personas" />
-                </div>
-                {rep.totalRegistradas && (
-                  <div style={{ fontSize: 12, color: "#8a6868", textAlign: "center", marginBottom: 16, marginTop: -10 }}>
-                    De {rep.totalRegistradas} reservas registradas esa semana
-                  </div>
-                )}
+                <button onClick={() => handleDownloadExcel(rep)} style={{ width: "100%", padding: "12px 10px", background: "#12241a", border: "1px solid #2a5a3a", borderRadius: 12, color: "#7ecfa0", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 22 }}>
+                  <span style={{ fontSize: 16 }}>📗</span>
+                  Descargar Excel (.xlsx)
+                </button>
+                {(() => {
+                  const registradas = rep.totalRegistradas || rep.totalReservas;
+                  const noLlegCount = registradas - rep.totalReservas;
+                  const pctAsist = registradas > 0 ? Math.round((rep.totalReservas / registradas) * 100) : 100;
+                  return (
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                        <StatCard val={registradas} label="Registradas" color="#c9a84c" />
+                        <StatCard val={rep.totalPersonas} label="Personas" />
+                        <StatCard val={rep.totalReservas} label="Llegaron" color="#4fc9a8" />
+                        <StatCard val={noLlegCount} label="No llegaron" color={noLlegCount > 0 ? "#c94c4c" : "#4fc9a8"} />
+                      </div>
+                      <div style={{ background: "#1e1210", borderRadius: 14, padding: "14px 16px", marginBottom: 20, border: "1px solid #2a1818" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ flex: 1, background: "#2a1818", borderRadius: 4, height: 10, overflow: "hidden" }}>
+                            <div style={{ width: `${pctAsist}%`, background: "linear-gradient(90deg, #4a9e6a, #7efbaa66)", height: "100%", borderRadius: 4 }} />
+                          </div>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: "#4a9e6a", minWidth: 42 }}>{pctAsist}%</div>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#7a5050", marginTop: 6 }}>Asistencia global de la semana</div>
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* ── Por iniciales A-Z ── */}
+                {(() => {
+                  const byIni = getByIniciales(rep);
+                  const iniciales = Object.keys(byIni).sort((a, b) => a.localeCompare(b));
+                  if (iniciales.length === 0) return null;
+                  return (
+                    <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                        <div style={{ fontSize: 11, letterSpacing: 1, color: "#9a7878", textTransform: "uppercase" }}>Por iniciales · A-Z</div>
+                        <div style={{ fontSize: 9, color: "#7a5050" }}>reg → ✓ llegaron / ✗ no</div>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#7a5050", marginBottom: 14 }}>⚠️ = menos del 50% de sus reservas llegó</div>
+                      {iniciales.map(ini => {
+                        const d = byIni[ini];
+                        const p = d.registradas > 0 ? Math.round((d.llegaron / d.registradas) * 100) : 0;
+                        const sospechoso = d.registradas >= 3 && p < 50;
+                        return (
+                          <div key={ini} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                            <div style={{ minWidth: 40, height: 32, borderRadius: 8, background: sospechoso ? "#c94c4c22" : "#c9a84c18", border: `1px solid ${sospechoso ? "#c94c4c66" : "#c9a84c44"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: sospechoso ? "#ff9999" : "#c9a84c" }}>
+                              {ini}{sospechoso ? " ⚠️" : ""}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ background: "#2a1818", borderRadius: 3, height: 7, overflow: "hidden", position: "relative" }}>
+                                <div style={{ position: "absolute", width: "100%", background: "#c94c4c33", height: "100%" }} />
+                                <div style={{ position: "absolute", width: `${p}%`, background: "#4a9e6a", height: "100%", borderRadius: 3 }} />
+                              </div>
+                            </div>
+                            <div style={{ minWidth: 108, fontSize: 11, color: "#9a7878", textAlign: "right" }}>
+                              {d.registradas} reg → <span style={{ color: "#4a9e6a" }}>✓{d.llegaron}</span> / <span style={{ color: d.noLlegaron > 0 ? "#c94c4c" : "#5a3838" }}>✗{d.noLlegaron}</span> · {p}%
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
                 <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
                   <div style={{ fontSize: 11, letterSpacing: 1, color: "#9a7878", textTransform: "uppercase", marginBottom: 12 }}>Por categoría</div>
                   <RoleBar reservaciones={rep.reservaciones} />
@@ -1390,20 +1809,62 @@ export default function App() {
                     );
                   })}
                 </div>
-                <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", border: "1px solid #2a1818" }}>
-                  <div style={{ fontSize: 11, letterSpacing: 1, color: "#9a7878", textTransform: "uppercase", marginBottom: 14 }}>Detalle de asistentes</div>
-                  {rep.reservaciones.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre)).map(r => {
-                    const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
-                    return (
-                      <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #2a1818" }}>
-                        <div style={{ fontSize: 12, color: "#9a7878", minWidth: 52 }}>{formatDate(r.fecha)}</div>
-                        <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</div>
-                        <div style={{ fontSize: 11, color: "#a07878" }}>👤{r.personas}</div>
-                        <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}` }}>{r.iniciales}</div>
+                {/* ── Detalle de asistentes, agrupado por día ── */}
+                <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
+                  <div style={{ fontSize: 11, letterSpacing: 1, color: "#4a9e6a", textTransform: "uppercase", marginBottom: 14 }}>✓ Sí llegaron</div>
+                  {(() => {
+                    const orden = [...rep.reservaciones].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre));
+                    const porDia = {};
+                    orden.forEach(r => { if (!porDia[r.fecha]) porDia[r.fecha] = []; porDia[r.fecha].push(r); });
+                    return Object.keys(porDia).sort().map(fecha => (
+                      <div key={fecha} style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#c9a84c", padding: "4px 0", borderBottom: "1px solid #c9a84c33", marginBottom: 4 }}>
+                          📅 {formatDate(fecha)} · {porDia[fecha].length} res
+                        </div>
+                        {porDia[fecha].map(r => {
+                          const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
+                          return (
+                            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #2a1818" }}>
+                              <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nombre}</div>
+                              <div style={{ fontSize: 11, color: "#a07878" }}>👤{r.personas}</div>
+                              <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}` }}>{r.iniciales}</div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
+
+                {/* ── Detalle de no llegadas ── */}
+                {rep.noLlegaron && rep.noLlegaron.length > 0 && (
+                  <div style={{ background: "#241010", borderRadius: 14, padding: "16px", border: "1px solid #c94c4c44" }}>
+                    <div style={{ fontSize: 11, letterSpacing: 1, color: "#c94c4c", textTransform: "uppercase", marginBottom: 4 }}>✗ No llegaron</div>
+                    <div style={{ fontSize: 10, color: "#7a5050", marginBottom: 14 }}>Registradas que nunca se palomearon — posibles fantasma</div>
+                    {(() => {
+                      const orden = [...rep.noLlegaron].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre));
+                      const porDia = {};
+                      orden.forEach(r => { if (!porDia[r.fecha]) porDia[r.fecha] = []; porDia[r.fecha].push(r); });
+                      return Object.keys(porDia).sort().map(fecha => (
+                        <div key={fecha} style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#c94c4c", padding: "4px 0", borderBottom: "1px solid #c94c4c33", marginBottom: 4 }}>
+                            📅 {formatDate(fecha)} · {porDia[fecha].length} res
+                          </div>
+                          {porDia[fecha].map(r => {
+                            const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
+                            return (
+                              <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #3a1818" }}>
+                                <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#d8b0b0" }}>{r.nombre}</div>
+                                <div style={{ fontSize: 11, color: "#a07878" }}>👤{r.personas}</div>
+                                <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}` }}>{r.iniciales}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -1506,7 +1967,7 @@ export default function App() {
                   <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "1px solid #2a1818" }}>
                     <div style={{ fontSize: 14, color: r.llego === true ? "#4a9e6a" : "#3a2020" }}>{r.llego === true ? "✓" : "·"}</div>
                     <div style={{ minWidth: 48, fontSize: 11, color: "#9a7878" }}>{formatDate(r.fecha)}</div>
-                    <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: r.llego === true ? "#7efbaa" : "#f5e8e0" }}>{r.nombre}</div>
+                    <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: r.llego === true ? "#7efbaa" : r.vip ? "#f5c04c" : "#f5e8e0" }}>{r.vip ? "⭐ " : ""}{r.nombre}</div>
                     <div style={{ fontSize: 11, color: "#9a7878" }}>👤{r.personas}</div>
                     <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}` }}>{r.iniciales}</div>
                   </div>
@@ -1554,7 +2015,7 @@ export default function App() {
                     {/* Fila por cada inicial */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 16, borderLeft: `2px solid ${role.color}33` }}>
                       {Object.entries(porIniciales)
-                        .sort((a, b) => (b[1].llegaron + b[1].noLlegaron) - (a[1].llegaron + a[1].noLlegaron))
+                        .sort((a, b) => a[0].localeCompare(b[0]))
                         .map(([inicial, datos]) => {
                           const total = datos.llegaron + datos.noLlegaron;
                           return (
@@ -1598,9 +2059,15 @@ export default function App() {
       {tab === "mapa" && (
         <MapaMesas
           mesaStatusP1={mesaStatusP1} mesaStatusP2={mesaStatusP2}
+          mesaNombres={mesaNombres}
           cuartos={cuartos} onToggle={toggleMesa}
+          onAsignar={asignarMesa}
           onUpdateCuarto={updateCuarto} onResetCuartos={resetCuartos}
           canEdit={puede.checkAsistencia}
+          canAsignar={puede.asignarMesa}
+          reservasFuturas={reservaciones
+            .filter(r => r.fecha >= getTodayLocal())
+            .sort((a, b) => (b.vip ? 1 : 0) - (a.vip ? 1 : 0) || a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre))}
           pisoActivo={pisoActivo} setPisoActivo={setPisoActivo}
         />
       )}
