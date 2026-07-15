@@ -25,6 +25,18 @@ const ROLE_COLORS = {
   instagram: { bg: "#e1306c22", border: "#e1306c", text: "#e1306c" },
 };
 
+// ── Prioridad de reserva: sistema de estrellas ────────────────
+// ★★★ VIP (oro) · ★★ Destacado (plata) · ★ normal (tenue)
+const PRIORIDAD = {
+  vip:        { icon: "★★★", label: "VIP",       bg: "#241a08", color: "#f5c04c" },
+  preferente: { icon: "★★",  label: "Destacado", bg: "#1a1a20", color: "#c8c8d8" },
+};
+// Soporta reservas viejas que solo traían vip: true
+const getPrioridad = r => r.prioridad || (r.vip === true ? "vip" : null);
+// Estrellas pequeñas para cualquier reserva (normal = 1 tenue)
+const starsDe = r => { const p = getPrioridad(r); return p ? PRIORIDAD[p].icon : "★"; };
+const starColorDe = r => { const p = getPrioridad(r); return p ? PRIORIDAD[p].color : "#6a5050"; };
+
 const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const DAYS   = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
 
@@ -193,7 +205,7 @@ function buildWhatsAppText(rep) {
       L.push(`📅 *${formatDate(r.fecha)}*`);
     }
     const roleLabel = ROLES.find(x => x.id === r.rol)?.label || r.rol;
-    L.push(`   ✅ ${r.nombre}${r.vip ? " ⭐" : ""} · 👤${r.personas} · ${r.iniciales} (${roleLabel})`);
+    L.push(`   ✅ ${r.nombre}${getPrioridad(r) ? " " + PRIORIDAD[getPrioridad(r)].icon : ""} · 👤${r.personas} · ${r.iniciales} (${roleLabel})`);
   });
   L.push("");
 
@@ -210,7 +222,7 @@ function buildWhatsAppText(rep) {
         L.push(`📅 *${formatDate(r.fecha)}*`);
       }
       const roleLabel = ROLES.find(x => x.id === r.rol)?.label || r.rol;
-      L.push(`   ❌ ${r.nombre}${r.vip ? " ⭐" : ""} · 👤${r.personas} · ${r.iniciales} (${roleLabel})`);
+      L.push(`   ❌ ${r.nombre}${getPrioridad(r) ? " " + PRIORIDAD[getPrioridad(r)].icon : ""} · 👤${r.personas} · ${r.iniciales} (${roleLabel})`);
     });
     L.push("");
   }
@@ -603,10 +615,10 @@ function MapaMesas({ mesaStatusP1, mesaStatusP2, mesaNombres, cuartos, onToggle,
                   const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
                   return (
                     <div key={r.id} onClick={() => asignar(r.nombre)}
-                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", marginBottom: 7, background: r.vip ? "#241c0c" : "#1e1210", border: `1px solid ${r.vip ? "#c9a84c66" : "#2a1818"}`, borderRadius: 12, cursor: "pointer" }}>
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", marginBottom: 7, background: getPrioridad(r) ? PRIORIDAD[getPrioridad(r)].bg : "#1e1210", border: `1px solid ${getPrioridad(r) ? PRIORIDAD[getPrioridad(r)].color + "66" : "#2a1818"}`, borderRadius: 12, cursor: "pointer" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: r.vip ? "#f5c04c" : "#f5e8e0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {r.vip ? "⭐ " : ""}{r.nombre}
+                        <div style={{ fontSize: 13, fontWeight: 600, color: getPrioridad(r) ? PRIORIDAD[getPrioridad(r)].color : "#f5e8e0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: 8, letterSpacing: 1, color: starColorDe(r), marginRight: 5 }}>{starsDe(r)}</span>{r.nombre}
                         </div>
                         <div style={{ fontSize: 10, color: "#9a7878", marginTop: 2 }}>{formatDate(r.fecha)} · 👤{r.personas} · {r.iniciales}</div>
                       </div>
@@ -774,7 +786,7 @@ export default function App() {
   const PERFIL_LABEL = { staff: "👤 Staff", supervisor: "👥 Supervisor", admin: "👑 Admin" };
   const PERFIL_COLOR = { staff: "#c9a84c", supervisor: "#7c6fff", admin: "#e1306c" };
 
-  const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", vip: false });
+  const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", prioridad: null });
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -851,6 +863,7 @@ export default function App() {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
+    const prioridadFinal = puede.marcarVip ? form.prioridad || null : null;
     const nueva = {
       id: Date.now().toString(),
       fecha: form.fecha,
@@ -859,32 +872,34 @@ export default function App() {
       iniciales: form.iniciales.trim().toUpperCase(),
       rol: form.rol,
       llego: false,
-      vip: puede.marcarVip && form.vip === true,
+      prioridad: prioridadFinal,
+      vip: prioridadFinal === "vip",
       createdAt: new Date().toISOString(),
     };
     try {
       await saveReservacion(nueva);
-      setForm({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", vip: false });
+      setForm({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", prioridad: null });
       setErrors({});
       setView("list");
-      showToast(nueva.vip ? "⭐ Reservación VIP guardada ✓" : "Reservación guardada ✓");
+      showToast(prioridadFinal ? `${PRIORIDAD[prioridadFinal].icon} Reservación ${PRIORIDAD[prioridadFinal].label} guardada ✓` : "Reservación guardada ✓");
     } catch {
       showToast("Error al guardar", "error");
     }
     setSaving(false);
   }
 
-  // ── Marcar/quitar VIP (solo admin) ───────────────────────────
-  async function toggleVip(r) {
+  // ── Marcar prioridad: VIP o Cliente preferente (solo admin) ──
+  async function setPrioridadReserva(r, nivel) {
     if (!puede.marcarVip) {
-      showToast("Solo el administrador puede marcar VIP", "error");
+      showToast("Solo el administrador puede marcar prioridad", "error");
       return;
     }
-    const updated = { ...r, vip: !r.vip };
+    const nueva = getPrioridad(r) === nivel ? null : nivel; // tocar el mismo la quita
+    const updated = { ...r, prioridad: nueva, vip: nueva === "vip" };
     try {
       await saveReservacion(updated);
       setSelected(updated);
-      showToast(updated.vip ? "⭐ Marcada como VIP" : "VIP quitado");
+      showToast(nueva ? `${PRIORIDAD[nueva].icon} Marcada como ${PRIORIDAD[nueva].label}` : "Marca de prioridad quitada");
     } catch {
       showToast("Error al actualizar", "error");
     }
@@ -916,11 +931,13 @@ export default function App() {
       showToast("El corte solo se puede generar los domingos", "error");
       return;
     }
+    if (!window.confirm("¿Estás seguro que deseas realizar el corte?\n\nLas reservas de la semana se archivarán en el reporte y se limpiará la lista.")) return;
     await ejecutarCorte(getTodayLocal());
   }
 
   // Genera corte para cualquier semana que tenga reservas sin corte
   async function generarCorteManual(semanaStart, semanaEnd) {
+    if (!window.confirm("¿Estás seguro que deseas realizar el corte de esta semana?\n\nLas reservas se archivarán en el reporte y se limpiará la lista.")) return;
     setGenerando(true);
     await ejecutarCorte(semanaEnd);
     setGenerando(false);
@@ -1080,9 +1097,9 @@ export default function App() {
       // ── Hoja 3: Sí llegaron ──
       const llegaronRows = [...rep.reservaciones]
         .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre))
-        .map(r => [formatDate(r.fecha), r.nombre, r.personas, r.iniciales, roleName(r.rol), r.vip ? "⭐ VIP" : ""]);
+        .map(r => [formatDate(r.fecha), r.nombre, r.personas, r.iniciales, roleName(r.rol), getPrioridad(r) ? PRIORIDAD[getPrioridad(r)].icon + " " + PRIORIDAD[getPrioridad(r)].label : ""]);
       const wsLleg = XLSX.utils.aoa_to_sheet([
-        ["Fecha", "Nombre", "Personas", "Registró", "Categoría", "VIP"],
+        ["Fecha", "Nombre", "Personas", "Registró", "Categoría", "Prioridad"],
         ...llegaronRows,
       ]);
       wsLleg["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 9 }, { wch: 9 }, { wch: 12 }];
@@ -1092,9 +1109,9 @@ export default function App() {
       if (noLleg.length > 0) {
         const noLlegRows = [...noLleg]
           .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre))
-          .map(r => [formatDate(r.fecha), r.nombre, r.personas, r.iniciales, roleName(r.rol), r.vip ? "⭐ VIP" : ""]);
+          .map(r => [formatDate(r.fecha), r.nombre, r.personas, r.iniciales, roleName(r.rol), getPrioridad(r) ? PRIORIDAD[getPrioridad(r)].icon + " " + PRIORIDAD[getPrioridad(r)].label : ""]);
         const wsNo = XLSX.utils.aoa_to_sheet([
-          ["Fecha", "Nombre", "Personas", "Registró", "Categoría", "VIP"],
+          ["Fecha", "Nombre", "Personas", "Registró", "Categoría", "Prioridad"],
           ...noLlegRows,
         ]);
         wsNo["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 9 }, { wch: 9 }, { wch: 12 }];
@@ -1449,6 +1466,8 @@ export default function App() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           {items.map((r, idx) => {
                             const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
+                            const prio = getPrioridad(r);
+                            const pc = prio ? PRIORIDAD[prio] : null;
                             return (
                               <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                 {/* Número */}
@@ -1476,21 +1495,22 @@ export default function App() {
                                 <div
                                   onClick={() => { setSelected(r); setView("detail"); }}
                                   style={{
-                                    flex: 1, background: r.vip && !r.llego ? "#241a08" : r.llego ? "#0f1a12" : "#1e1210",
-                                    border: r.vip ? "1px solid #f5c04c66" : "1px solid #2a1818",
-                                    borderLeft: `3px solid ${r.vip ? "#f5c04c" : r.llego ? "#4fc9a8" : rc.border}`,
+                                    flex: 1, background: pc && !r.llego ? pc.bg : r.llego ? "#0f1a12" : "#1e1210",
+                                    border: pc ? `1px solid ${pc.color}66` : "1px solid #2a1818",
+                                    borderLeft: `3px solid ${pc ? pc.color : r.llego ? "#4fc9a8" : rc.border}`,
                                     borderRadius: 12, padding: "11px 13px", cursor: "pointer",
                                     display: "flex", alignItems: "center", gap: 10,
-                                    opacity: r.llego ? 1 : r.vip ? 1 : 0.85,
-                                    boxShadow: r.vip ? "0 0 12px #f5c04c22" : "none",
+                                    opacity: r.llego ? 1 : pc ? 1 : 0.85,
+                                    boxShadow: pc ? `0 0 12px ${pc.color}22` : "none",
                                   }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: r.llego ? "#7efbaa" : r.vip ? "#f5c04c" : "#f5e8e0" }}>
-                                      {r.vip ? "⭐ " : ""}{r.nombre}
+                                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: r.llego ? "#7efbaa" : pc ? pc.color : "#f5e8e0" }}>
+                                      <span style={{ fontSize: 9, letterSpacing: 1.5, color: starColorDe(r), marginRight: 6 }}>{starsDe(r)}</span>
+                                      {r.nombre}
                                     </div>
                                     <div style={{ fontSize: 11, color: "#a07878", marginTop: 2 }}>
                                       👤 {r.personas} · <span style={{ color: rc.text }}>{r.iniciales}</span>
-                                      {r.vip && <span style={{ color: "#f5c04c", marginLeft: 6, fontWeight: 700 }}>VIP</span>}
+                                      {pc && <span style={{ color: pc.color, marginLeft: 6, fontWeight: 700 }}>{pc.label}</span>}
                                     </div>
                                   </div>
                                   <div style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}`, whiteSpace: "nowrap" }}>
@@ -1555,17 +1575,28 @@ export default function App() {
                 {errors.rol && <div style={{ color: "#c94c4c", fontSize: 11, marginTop: 5 }}>{errors.rol}</div>}
               </div>
               {puede.marcarVip && (
-                <button onClick={() => setForm(f => ({ ...f, vip: !f.vip }))} style={{
-                  width: "100%", marginBottom: 26, padding: "13px", borderRadius: 12,
-                  border: `1.5px solid ${form.vip ? "#f5c04c" : "#3a2020"}`,
-                  background: form.vip ? "#f5c04c22" : "#1e1210",
-                  color: form.vip ? "#f5c04c" : "#666",
-                  fontSize: 13, fontWeight: 700, cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                }}>
-                  <span style={{ fontSize: 16 }}>⭐</span>
-                  {form.vip ? "Reserva VIP / Importante ✓" : "Marcar como VIP / Importante"}
-                </button>
+                <div style={{ marginBottom: 26 }}>
+                  <label style={{ fontSize: 10, letterSpacing: 1, color: "#a07878", textTransform: "uppercase", display: "block", marginBottom: 10 }}>Prioridad (opcional)</label>
+                  <div style={{ display: "flex", gap: 9 }}>
+                    {Object.entries(PRIORIDAD).map(([nivel, p]) => {
+                      const active = form.prioridad === nivel;
+                      return (
+                        <button key={nivel} onClick={() => setForm(f => ({ ...f, prioridad: f.prioridad === nivel ? null : nivel }))}
+                          style={{
+                            flex: 1, padding: "13px 6px", borderRadius: 12,
+                            border: `1.5px solid ${active ? p.color : "#3a2020"}`,
+                            background: active ? p.color + "22" : "#1e1210",
+                            color: active ? p.color : "#666",
+                            fontSize: 12, fontWeight: 700, cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                          }}>
+                          <span style={{ fontSize: 10, letterSpacing: 1 }}>{p.icon}</span>
+                          {p.label}{active ? " ✓" : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
               <button onClick={handleSubmit} disabled={saving} style={{ width: "100%", padding: "15px", background: saving ? "#5a4a1a" : "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
                 {saving ? "Guardando..." : "Guardar Reservación"}
@@ -1577,16 +1608,21 @@ export default function App() {
           {view === "detail" && selected && (() => {
             const r = selected;
             const rc = ROLE_COLORS[r.rol] || ROLE_COLORS.rp;
+            const prio = getPrioridad(r);
+            const pc = prio ? PRIORIDAD[prio] : null;
             return (
               <div style={{ padding: "18px 16px" }}>
                 <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#a07878", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 22 }}>← Volver</button>
-                <div style={{ background: "#1e1210", borderRadius: 16, border: `1px solid ${r.vip ? "#f5c04c66" : rc.border + "44"}`, overflow: "hidden", marginBottom: 18, boxShadow: r.vip ? "0 0 16px #f5c04c22" : "none" }}>
+                <div style={{ background: "#1e1210", borderRadius: 16, border: `1px solid ${pc ? pc.color + "66" : rc.border + "44"}`, overflow: "hidden", marginBottom: 18, boxShadow: pc ? `0 0 16px ${pc.color}22` : "none" }}>
                   <div style={{ background: rc.bg, padding: "18px 20px 14px", borderBottom: `1px solid ${rc.border}33` }}>
                     <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.5, color: rc.text, textTransform: "uppercase", marginBottom: 6 }}>
                       {ROLES.find(x => x.id === r.rol)?.label}
-                      {r.vip && <span style={{ color: "#f5c04c", marginLeft: 8 }}>· ⭐ VIP</span>}
+                      {pc && <span style={{ color: pc.color, marginLeft: 8 }}>· {pc.icon} {pc.label}</span>}
                     </div>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: r.vip ? "#f5c04c" : undefined }}>{r.vip ? "⭐ " : ""}{r.nombre}</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: pc ? pc.color : undefined }}>
+                      <span style={{ fontSize: 11, letterSpacing: 2, color: starColorDe(r), marginRight: 8, verticalAlign: 3 }}>{starsDe(r)}</span>
+                      {r.nombre}
+                    </div>
                   </div>
                   <div style={{ padding: "18px 20px" }}>
                     {[
@@ -1594,20 +1630,27 @@ export default function App() {
                       { icon: "👥", label: "Personas", val: r.personas },
                       { icon: "✍️", label: "Registrado por", val: r.iniciales },
                       { icon: r.llego ? "✅" : "⏳", label: "Asistencia", val: r.llego ? "Llegó" : "Pendiente" },
-                      ...(r.vip ? [{ icon: "⭐", label: "Prioridad", val: "VIP / Importante" }] : []),
+                      ...(pc ? [{ icon: pc.icon, label: "Prioridad", val: pc.label }] : []),
                     ].map(item => (
                       <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid #2a1818", fontSize: 14 }}>
                         <span style={{ color: "#a07878" }}>{item.icon} {item.label}</span>
-                        <span style={{ fontWeight: 600, color: item.label === "Asistencia" ? (r.llego ? "#4fc9a8" : "#888") : item.label === "Prioridad" ? "#f5c04c" : "#f5e8e0" }}>{item.val}</span>
+                        <span style={{ fontWeight: 600, color: item.label === "Asistencia" ? (r.llego ? "#4fc9a8" : "#888") : item.label === "Prioridad" ? (pc ? pc.color : "#f5e8e0") : "#f5e8e0" }}>{item.val}</span>
                       </div>
                     ))}
                   </div>
                 </div>
                 {puede.marcarVip && (
-                  <button onClick={() => toggleVip(r)}
-                    style={{ width: "100%", padding: "13px", marginBottom: 10, background: r.vip ? "#f5c04c18" : "transparent", color: "#f5c04c", border: "1px solid #f5c04c55", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                    {r.vip ? "Quitar marca VIP" : "⭐ Marcar como VIP / Importante"}
-                  </button>
+                  <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                    {Object.entries(PRIORIDAD).map(([nivel, p]) => {
+                      const active = prio === nivel;
+                      return (
+                        <button key={nivel} onClick={() => setPrioridadReserva(r, nivel)}
+                          style={{ flex: 1, padding: "13px 6px", background: active ? p.color + "18" : "transparent", color: p.color, border: `1px solid ${p.color}55`, borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                          {active ? `Quitar ${nivel === "vip" ? "VIP" : "destacado"}` : (<><span style={{ fontSize: 10, letterSpacing: 1 }}>{p.icon}</span> {p.label}</>)}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
                 <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id, r.iniciales); }}
                   style={{ width: "100%", padding: "13px", background: "transparent", color: "#c94c4c", border: "1px solid #c94c4c44", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
@@ -1967,7 +2010,7 @@ export default function App() {
                   <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: "1px solid #2a1818" }}>
                     <div style={{ fontSize: 14, color: r.llego === true ? "#4a9e6a" : "#3a2020" }}>{r.llego === true ? "✓" : "·"}</div>
                     <div style={{ minWidth: 48, fontSize: 11, color: "#9a7878" }}>{formatDate(r.fecha)}</div>
-                    <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: r.llego === true ? "#7efbaa" : r.vip ? "#f5c04c" : "#f5e8e0" }}>{r.vip ? "⭐ " : ""}{r.nombre}</div>
+                    <div style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: r.llego === true ? "#7efbaa" : getPrioridad(r) ? PRIORIDAD[getPrioridad(r)].color : "#f5e8e0" }}><span style={{ fontSize: 8, letterSpacing: 1, color: starColorDe(r), marginRight: 5 }}>{starsDe(r)}</span>{r.nombre}</div>
                     <div style={{ fontSize: 11, color: "#9a7878" }}>👤{r.personas}</div>
                     <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: rc.bg, color: rc.text, border: `1px solid ${rc.border}` }}>{r.iniciales}</div>
                   </div>
@@ -2067,7 +2110,10 @@ export default function App() {
           canAsignar={puede.asignarMesa}
           reservasFuturas={reservaciones
             .filter(r => r.fecha >= getTodayLocal())
-            .sort((a, b) => (b.vip ? 1 : 0) - (a.vip ? 1 : 0) || a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre))}
+            .sort((a, b) => {
+              const peso = r => getPrioridad(r) === "vip" ? 2 : getPrioridad(r) === "preferente" ? 1 : 0;
+              return peso(b) - peso(a) || a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre);
+            })}
           pisoActivo={pisoActivo} setPisoActivo={setPisoActivo}
         />
       )}
