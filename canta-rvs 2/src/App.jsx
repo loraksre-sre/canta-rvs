@@ -141,8 +141,8 @@ function buildWhatsAppText(rep) {
   const registradas = rep.totalRegistradas || rep.totalReservas;
   const pct = registradas > 0 ? Math.round((rep.totalReservas / registradas) * 100) : 100;
   const byIni = getByIniciales(rep);
-  const L = [];
 
+  const L = [];
   // ── Encabezado ──
   L.push(`📊 *CORTE SEMANAL*`);
   L.push(`*${rep.label}*`);
@@ -637,7 +637,6 @@ function MapaMesas({ mesaStatusP1, mesaStatusP2, mesaNombres, cuartos, onToggle,
   );
 }
 
-
 export default function App() {
   const [view, setView] = useState("list");
   const [reservaciones, setReservaciones] = useState([]);
@@ -771,11 +770,10 @@ export default function App() {
   const [pinError, setPinError] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
 
-  const PERFILES = { "1029": "staff", "2938": "supervisor", "3847": "admin" };
+  const PERFILES = { "1810": "staff", "1945": "supervisor", "1963": "admin" };
   const puede = {
     agregarReserva:  perfil !== null,
-    eliminarPropia:  perfil !== null,
-    eliminarAjena:   perfil === "supervisor" || perfil === "admin",
+    eliminar:        perfil === "supervisor" || perfil === "admin",
     checkAsistencia: perfil === "supervisor" || perfil === "admin",
     verReportes:     perfil === "supervisor" || perfil === "admin",
     verDashboard:    perfil === "admin",
@@ -788,6 +786,7 @@ export default function App() {
 
   const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", prioridad: null });
   const [errors, setErrors] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setLoading(true);
@@ -906,12 +905,7 @@ export default function App() {
   }
 
   async function handleDelete(id, creadoPor) {
-    const esPropia = creadoPor === form.iniciales.trim().toUpperCase() || creadoPor === undefined;
-    if (!puede.eliminarAjena && !esPropia) {
-      showToast("Solo puedes eliminar tus propias reservas", "error");
-      return;
-    }
-    if (!puede.eliminarPropia) {
+    if (!puede.eliminar) {
       showToast("No tienes permiso para eliminar reservas", "error");
       return;
     }
@@ -1047,11 +1041,11 @@ export default function App() {
     try {
       showToast("Generando Excel...");
       const XLSX = await import(/* @vite-ignore */ "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
-
       const registradas = rep.totalRegistradas || rep.totalReservas;
       const noLleg = rep.noLlegaron || [];
       const pct = registradas > 0 ? Math.round((rep.totalReservas / registradas) * 100) : 100;
       const roleName = id => ROLES.find(x => x.id === id)?.label || id;
+
       const wb = XLSX.utils.book_new();
 
       // ── Hoja 1: Resumen ──
@@ -1221,13 +1215,22 @@ export default function App() {
     } catch { showToast("No se pudo generar la imagen", "error"); }
   }
 
-  // ── Agrupar por día, orden alfa ───────────────────────────────
+  // ── Agrupar por día, orden alfa; dentro del día: pendientes arriba, llegaron abajo (solo si se puede ver asistencia) ──
   const filteredBase = reservaciones
     .filter(r => filterRole === "all" || r.rol === filterRole)
-    .filter(r => !filterDate || r.fecha === filterDate);
+    .filter(r => !filterDate || r.fecha === filterDate)
+    .filter(r => !searchQuery.trim() || r.nombre.toLowerCase().includes(searchQuery.trim().toLowerCase()));
 
   const groupedByDay = filteredBase
-    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.nombre.localeCompare(b.nombre))
+    .sort((a, b) => {
+      if (a.fecha !== b.fecha) return a.fecha.localeCompare(b.fecha);
+      if (puede.checkAsistencia) {
+        const llegoA = a.llego ? 1 : 0;
+        const llegoB = b.llego ? 1 : 0;
+        if (llegoA !== llegoB) return llegoA - llegoB; // pendientes (0) primero, llegaron (1) al final
+      }
+      return a.nombre.localeCompare(b.nombre);
+    })
     .reduce((acc, r) => {
       if (!acc[r.fecha]) acc[r.fecha] = [];
       acc[r.fecha].push(r);
@@ -1384,6 +1387,19 @@ export default function App() {
                 </div>
               )}
 
+              {/* Buscador por nombre */}
+              <div style={{ marginBottom: 14, position: "relative" }}>
+                <input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="🔍 Buscar por nombre..."
+                  style={{ width: "100%", boxSizing: "border-box", background: "#1e1210", border: "1px solid #3a2020", borderRadius: 12, padding: "11px 38px 11px 14px", color: "#f5e8e0", fontSize: 14, outline: "none" }}
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#9a7878", fontSize: 16, cursor: "pointer", padding: 4 }}>✕</button>
+                )}
+              </div>
+
               {/* Filtros por día */}
               {(() => {
                 const todosLosDias = [...new Set(reservaciones.map(r => r.fecha))].sort();
@@ -1426,10 +1442,10 @@ export default function App() {
               </div>
 
               {/* Stats */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: puede.checkAsistencia ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 20 }}>
                 <StatCard val={totalFiltered} label="Reservas" />
                 <StatCard val={totalPersonas} label="Personas" />
-                <StatCard val={llegaron} label="Llegaron" color="#4fc9a8" />
+                {puede.checkAsistencia && <StatCard val={llegaron} label="Llegaron" color="#4fc9a8" />}
               </div>
 
               {loading ? (
@@ -1454,12 +1470,14 @@ export default function App() {
                             <div style={{ fontSize: 15, fontWeight: 700, color: "#f5e8e0" }}>{formatDateFull(fecha)}</div>
                             <div style={{ fontSize: 11, color: "#9a7878", marginTop: 1 }}>
                               {items.length} reservas · {diaPersonas} personas
-                              {diaLlegaron > 0 && <span style={{ color: "#4a9e6a", marginLeft: 6 }}>· {diaLlegaron} llegaron ✓</span>}
+                              {puede.checkAsistencia && diaLlegaron > 0 && <span style={{ color: "#4a9e6a", marginLeft: 6 }}>· {diaLlegaron} llegaron ✓</span>}
                             </div>
                           </div>
-                          <div style={{ fontSize: 11, color: "#7a5050", fontWeight: 600, background: "#1e1210", border: "1px solid #2a1818", borderRadius: 20, padding: "3px 10px" }}>
-                            {diaLlegaron}/{items.length}
-                          </div>
+                          {puede.checkAsistencia && (
+                            <div style={{ fontSize: 11, color: "#7a5050", fontWeight: 600, background: "#1e1210", border: "1px solid #2a1818", borderRadius: 20, padding: "3px 10px" }}>
+                              {diaLlegaron}/{items.length}
+                            </div>
+                          )}
                         </div>
 
                         {/* Reservas del día */}
@@ -1473,38 +1491,41 @@ export default function App() {
                                 {/* Número */}
                                 <div style={{ minWidth: 20, fontSize: 11, color: "#7a5050", textAlign: "right", fontWeight: 600 }}>{idx + 1}</div>
 
-                                {/* Checkbox llegó */}
-                                <button
-                                  onClick={() => toggleLlego(r)}
-                                  disabled={isCheckBlocked(r)}
-                                  style={{
-                                    width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                                    border: `2px solid ${r.llego ? "#4a9e6a" : isCheckBlocked(r) ? "#3a2020" : "#3a2020"}`,
-                                    background: r.llego ? "#4a9e6a22" : isCheckBlocked(r) ? "#2a1818" : "transparent",
-                                    cursor: isCheckBlocked(r) ? "not-allowed" : "pointer",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    fontSize: isCheckBlocked(r) ? 11 : 14,
-                                    color: "#4a9e6a", transition: "all 0.15s",
-                                    opacity: isCheckBlocked(r) && !r.llego ? 0.4 : 1,
-                                  }}
-                                >
-                                  {r.llego ? "✓" : isCheckBlocked(r) ? "🔒" : ""}
-                                </button>
+                                {/* Checkbox llegó — solo visible para quien puede checar asistencia */}
+                                {puede.checkAsistencia && (
+                                  <button
+                                    onClick={() => toggleLlego(r)}
+                                    disabled={isCheckBlocked(r)}
+                                    style={{
+                                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                      border: `2px solid ${r.llego ? "#4a9e6a" : isCheckBlocked(r) ? "#3a2020" : "#3a2020"}`,
+                                      background: r.llego ? "#4a9e6a22" : isCheckBlocked(r) ? "#2a1818" : "transparent",
+                                      cursor: isCheckBlocked(r) ? "not-allowed" : "pointer",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      fontSize: isCheckBlocked(r) ? 11 : 14,
+                                      color: "#4a9e6a", transition: "all 0.15s",
+                                      opacity: isCheckBlocked(r) && !r.llego ? 0.4 : 1,
+                                    }}
+                                  >
+                                    {r.llego ? "✓" : isCheckBlocked(r) ? "🔒" : ""}
+                                  </button>
+                                )}
 
                                 {/* Card */}
                                 <div
                                   onClick={() => { setSelected(r); setView("detail"); }}
                                   style={{
-                                    flex: 1, background: pc && !r.llego ? pc.bg : r.llego ? "#0f1a12" : "#1e1210",
+                                    flex: 1,
+                                    background: !puede.checkAsistencia ? "#1e1210" : pc && !r.llego ? pc.bg : r.llego ? "#0f1a12" : "#1e1210",
                                     border: pc ? `1px solid ${pc.color}66` : "1px solid #2a1818",
-                                    borderLeft: `3px solid ${pc ? pc.color : r.llego ? "#4fc9a8" : rc.border}`,
+                                    borderLeft: `3px solid ${pc ? pc.color : (puede.checkAsistencia && r.llego) ? "#4fc9a8" : rc.border}`,
                                     borderRadius: 12, padding: "11px 13px", cursor: "pointer",
                                     display: "flex", alignItems: "center", gap: 10,
-                                    opacity: r.llego ? 1 : pc ? 1 : 0.85,
+                                    opacity: !puede.checkAsistencia ? 1 : r.llego ? 1 : pc ? 1 : 0.85,
                                     boxShadow: pc ? `0 0 12px ${pc.color}22` : "none",
                                   }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: r.llego ? "#7efbaa" : pc ? pc.color : "#f5e8e0" }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: (puede.checkAsistencia && r.llego) ? "#7efbaa" : pc ? pc.color : "#f5e8e0" }}>
                                       <span style={{ fontSize: 9, letterSpacing: 1.5, color: starColorDe(r), marginRight: 6 }}>{starsDe(r)}</span>
                                       {r.nombre}
                                     </div>
@@ -1629,7 +1650,7 @@ export default function App() {
                       { icon: "📅", label: "Fecha", val: formatDateFull(r.fecha) },
                       { icon: "👥", label: "Personas", val: r.personas },
                       { icon: "✍️", label: "Registrado por", val: r.iniciales },
-                      { icon: r.llego ? "✅" : "⏳", label: "Asistencia", val: r.llego ? "Llegó" : "Pendiente" },
+                      ...(puede.checkAsistencia ? [{ icon: r.llego ? "✅" : "⏳", label: "Asistencia", val: r.llego ? "Llegó" : "Pendiente" }] : []),
                       ...(pc ? [{ icon: pc.icon, label: "Prioridad", val: pc.label }] : []),
                     ].map(item => (
                       <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid #2a1818", fontSize: 14 }}>
@@ -1652,10 +1673,12 @@ export default function App() {
                     })}
                   </div>
                 )}
-                <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id, r.iniciales); }}
-                  style={{ width: "100%", padding: "13px", background: "transparent", color: "#c94c4c", border: "1px solid #c94c4c44", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                  Eliminar reservación
-                </button>
+                {puede.eliminar && (
+                  <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id, r.iniciales); }}
+                    style={{ width: "100%", padding: "13px", background: "transparent", color: "#c94c4c", border: "1px solid #c94c4c44", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                    Eliminar reservación
+                  </button>
+                )}
               </div>
             );
           })()}
@@ -1794,7 +1817,6 @@ export default function App() {
                     </>
                   );
                 })()}
-
                 {/* ── Por iniciales A-Z ── */}
                 {(() => {
                   const byIni = getByIniciales(rep);
@@ -1831,7 +1853,6 @@ export default function App() {
                     </div>
                   );
                 })()}
-
                 <div style={{ background: "#1e1210", borderRadius: 14, padding: "16px", marginBottom: 14, border: "1px solid #2a1818" }}>
                   <div style={{ fontSize: 11, letterSpacing: 1, color: "#9a7878", textTransform: "uppercase", marginBottom: 12 }}>Por categoría</div>
                   <RoleBar reservaciones={rep.reservaciones} />
@@ -1878,7 +1899,6 @@ export default function App() {
                     ));
                   })()}
                 </div>
-
                 {/* ── Detalle de no llegadas ── */}
                 {rep.noLlegaron && rep.noLlegaron.length > 0 && (
                   <div style={{ background: "#241010", borderRadius: 14, padding: "16px", border: "1px solid #c94c4c44" }}>
