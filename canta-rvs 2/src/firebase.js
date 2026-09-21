@@ -77,6 +77,27 @@ export function subscribeReportes(callback) {
   );
 }
 
+// ── RPs (login individual de cada RP) ─────────────────────────
+// No tienen cuenta propia en Firebase Authentication: entran con un
+// PIN de 4 dígitos que se busca aquí. Para poder leer/escribir esta
+// colección (y las reservaciones) se autentican por debajo con la
+// misma cuenta de Firebase Auth que usa "staff".
+export async function saveRP(rp) {
+  await setDoc(doc(db, "rps", rp.id), rp);
+}
+
+export async function getRPs() {
+  const snap = await getDocs(collection(db, "rps"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export function subscribeRPs(callback) {
+  return onSnapshot(
+    query(collection(db, "rps"), orderBy("createdAt", "desc")),
+    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  );
+}
+
 // ── Mapa de mesas (tiempo real) ───────────────────────────────
 // Guardamos todo el estado del mapa en un solo documento por piso/cuartos
 // para minimizar escrituras y tener sync instantáneo
