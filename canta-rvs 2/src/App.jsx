@@ -9,6 +9,8 @@ import {
   subscribeMapa,
   loginConRol,
   logoutRol,
+  saveRP,
+  getRPs,
 } from "./firebase.js";
 
 const ROLES = [
@@ -770,11 +772,27 @@ export default function App() {
   const [pinError, setPinError] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
 
-  const PERFILES = { "1810": "staff", "1945": "supervisor", "1963": "admin" };
+  // ── RP individual (Team Canta) ────────────────────────────────
+  const [currentRP, setCurrentRP] = useState(null); // { id, nombre, iniciales, pin }
+  const [authMode, setAuthMode] = useState("login"); // "login" | "registro"
+  const [regStep, setRegStep] = useState("codigo"); // "codigo" | "form" | "listo"
+  const [regCodigo, setRegCodigo] = useState("");
+  const [regCodigoError, setRegCodigoError] = useState(false);
+  const [regForm, setRegForm] = useState({ nombre: "", iniciales: "" });
+  const [regErrors, setRegErrors] = useState({});
+  const [regLoading, setRegLoading] = useState(false);
+  const [regPinGenerado, setRegPinGenerado] = useState("");
+  const [soloMias, setSoloMias] = useState(true);
+  const [editingId, setEditingId] = useState(null); // id de la reserva en edición (null = creando nueva)
+
+  // Código que el encargado comparte con un RP nuevo para que se pueda dar de alta.
+  const CODIGO_REGISTRO_RP = "1963";
+
+  const PERFILES = { "1810": "staff", "2143": "supervisor", "1984": "admin" };
   const puede = {
     agregarReserva:  perfil !== null,
-    eliminar:        perfil === "supervisor" || perfil === "admin",
-    checkAsistencia: perfil === "supervisor" || perfil === "admin",
+    eliminar:        perfil === "admin",
+    checkAsistencia: perfil === "admin",
     verReportes:     perfil === "supervisor" || perfil === "admin",
     verDashboard:    perfil === "admin",
     generarCorte:    perfil === "admin",
@@ -783,6 +801,17 @@ export default function App() {
   };
   const PERFIL_LABEL = { staff: "👤 Staff", supervisor: "👥 Supervisor", admin: "👑 Admin" };
   const PERFIL_COLOR = { staff: "#c9a84c", supervisor: "#7c6fff", admin: "#e1306c" };
+
+  // Puede editar/eliminar:
+  //  · Admin: cualquier reserva
+  //  · Supervisor: solo las que se agregaron desde el perfil de Supervisor
+  //  · RP: solo las suyas
+  function canModify(r) {
+    if (perfil === "admin") return true;
+    if (perfil === "supervisor") return r.creadoPorPerfil === "supervisor";
+    if (currentRP && r.rpId === currentRP.id) return true;
+    return false;
+  }
 
   const [form, setForm] = useState({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", prioridad: null });
   const [errors, setErrors] = useState({});
@@ -833,22 +862,45 @@ export default function App() {
     if (!form.iniciales.trim()) e.iniciales = "Requerido";
     if (!form.rol) e.rol = "Selecciona una opcion";
     const nombreNorm = form.nombre.trim().toLowerCase();
-    const duplicado = reservaciones.find(r => r.nombre.toLowerCase() === nombreNorm && r.fecha === form.fecha);
+    const duplicado = reservaciones.find(r => r.id !== editingId && r.nombre.toLowerCase() === nombreNorm && r.fecha === form.fecha);
     if (duplicado) e.nombre = `"${duplicado.nombre}" ya esta en la lista para ese dia`;
     return e;
   }
 
   async function handlePinSubmit() {
     const p = PERFILES[pinInput];
-    if (!p) {
-      setPinError(true);
-      setPinInput("");
+    if (p) {
+      setPinLoading(true);
+      try {
+        await loginConRol(p);
+        setPerfil(p);
+        setCurrentRP(null);
+        setPinError(false);
+      } catch {
+        setPinError(true);
+      } finally {
+        setPinLoading(false);
+        setPinInput("");
+      }
       return;
     }
+    // No es un PIN de staff/supervisor/admin: puede ser el PIN de un RP
     setPinLoading(true);
     try {
-      await loginConRol(p);
-      setPerfil(p);
+      await loginConRol("staff");
+      const rps = await getRPs();
+      const rp = rps.find(x => x.pin === pinInput);
+      if (!rp) {
+        await logoutRol().catch(() => {});
+        setPinError(true);
+        setPinInput("");
+        setPinLoading(false);
+        return;
+      }
+      setPerfil("staff");
+      setCurrentRP(rp);
+      setSoloMias(true);
+      setForm(f => ({ ...f, iniciales: rp.iniciales, rol: "rp" }));
       setPinError(false);
     } catch {
       setPinError(true);
@@ -858,33 +910,127 @@ export default function App() {
     }
   }
 
+  // ── Registro de un RP nuevo ────────────────────────────────────
+  function handleRegCodigoSubmit() {
+    if (regCodigo === CODIGO_REGISTRO_RP) {
+      setRegCodigoError(false);
+      setRegStep("form");
+    } else {
+      setRegCodigoError(true);
+      setRegCodigo("");
+    }
+  }
+
+  function generarPinUnico(pinesExistentes) {
+    let pin;
+    do {
+      pin = String(Math.floor(1000 + Math.random() * 9000));
+    } while (Object.keys(PERFILES).includes(pin) || pin === CODIGO_REGISTRO_RP || pinesExistentes.includes(pin));
+    return pin;
+  }
+
+  async function handleRegistroSubmit() {
+    const e = {};
+    if (!regForm.nombre.trim()) e.nombre = "Requerido";
+    if (!regForm.iniciales.trim()) e.iniciales = "Requerido";
+    if (Object.keys(e).length) { setRegErrors(e); return; }
+    setRegLoading(true);
+    try {
+      await loginConRol("staff");
+      const rps = await getRPs();
+      const inicialesNorm = regForm.iniciales.trim().toUpperCase();
+      const yaExiste = rps.find(x => x.iniciales === inicialesNorm);
+      if (yaExiste) {
+        setRegErrors({ iniciales: "Ya hay un RP registrado con esas iniciales" });
+        setRegLoading(false);
+        return;
+      }
+      const pin = generarPinUnico(rps.map(x => x.pin));
+      const nuevoRP = {
+        id: Date.now().toString(),
+        nombre: regForm.nombre.trim(),
+        iniciales: inicialesNorm,
+        pin,
+        createdAt: new Date().toISOString(),
+      };
+      await saveRP(nuevoRP);
+      await logoutRol().catch(() => {});
+      setRegPinGenerado(pin);
+      setRegErrors({});
+      setRegStep("listo");
+    } catch {
+      setRegErrors({ nombre: "Error al registrar, intenta de nuevo" });
+    }
+    setRegLoading(false);
+  }
+
+  function volverALogin() {
+    setAuthMode("login");
+    setRegStep("codigo");
+    setRegCodigo("");
+    setRegCodigoError(false);
+    setRegForm({ nombre: "", iniciales: "" });
+    setRegErrors({});
+    setRegPinGenerado("");
+  }
+
   async function handleSubmit() {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     const prioridadFinal = puede.marcarVip ? form.prioridad || null : null;
-    const nueva = {
-      id: Date.now().toString(),
+    const base = {
+      id: editingId || Date.now().toString(),
       fecha: form.fecha,
       nombre: form.nombre.trim(),
       personas: parseInt(form.personas),
       iniciales: form.iniciales.trim().toUpperCase(),
       rol: form.rol,
-      llego: false,
       prioridad: prioridadFinal,
       vip: prioridadFinal === "vip",
-      createdAt: new Date().toISOString(),
     };
+    let reservaFinal;
+    if (editingId) {
+      const original = reservaciones.find(r => r.id === editingId) || {};
+      reservaFinal = { ...original, ...base };
+    } else {
+      reservaFinal = {
+        ...base,
+        llego: false,
+        createdAt: new Date().toISOString(),
+        ...(currentRP ? { rpId: currentRP.id } : { creadoPorPerfil: perfil }),
+      };
+    }
     try {
-      await saveReservacion(nueva);
-      setForm({ fecha: getTodayLocal(), nombre: "", personas: "", iniciales: "", rol: "", prioridad: null });
+      await saveReservacion(reservaFinal);
+      setForm({
+        fecha: getTodayLocal(), nombre: "", personas: "",
+        iniciales: currentRP ? currentRP.iniciales : "",
+        rol: currentRP ? "rp" : "", prioridad: null,
+      });
       setErrors({});
+      const eraEdicion = !!editingId;
+      setEditingId(null);
       setView("list");
-      showToast(prioridadFinal ? `${PRIORIDAD[prioridadFinal].icon} Reservación ${PRIORIDAD[prioridadFinal].label} guardada ✓` : "Reservación guardada ✓");
+      showToast(eraEdicion ? "Reservación actualizada ✓" : (prioridadFinal ? `${PRIORIDAD[prioridadFinal].icon} Reservación ${PRIORIDAD[prioridadFinal].label} guardada ✓` : "Reservación guardada ✓"));
     } catch {
       showToast("Error al guardar", "error");
     }
     setSaving(false);
+  }
+
+  function startEdit(r) {
+    setForm({
+      fecha: r.fecha,
+      nombre: r.nombre,
+      personas: String(r.personas),
+      iniciales: r.iniciales,
+      rol: r.rol,
+      prioridad: r.prioridad || null,
+    });
+    setEditingId(r.id);
+    setErrors({});
+    setView("form");
   }
 
   // ── Marcar prioridad: VIP o Cliente preferente (solo admin) ──
@@ -904,13 +1050,13 @@ export default function App() {
     }
   }
 
-  async function handleDelete(id, creadoPor) {
-    if (!puede.eliminar) {
-      showToast("No tienes permiso para eliminar reservas", "error");
+  async function handleDelete(r) {
+    if (!canModify(r)) {
+      showToast("No tienes permiso para eliminar esta reserva", "error");
       return;
     }
     try {
-      await deleteReservacion(id);
+      await deleteReservacion(r.id);
       setSelected(null);
       setView("list");
       showToast("Eliminada", "error");
@@ -1219,6 +1365,7 @@ export default function App() {
   const filteredBase = reservaciones
     .filter(r => filterRole === "all" || r.rol === filterRole)
     .filter(r => !filterDate || r.fecha === filterDate)
+    .filter(r => !currentRP || !soloMias || r.rpId === currentRP.id)
     .filter(r => !searchQuery.trim() || r.nombre.toLowerCase().includes(searchQuery.trim().toLowerCase()));
 
   const groupedByDay = filteredBase
@@ -1279,36 +1426,122 @@ export default function App() {
           <div style={{ fontSize: 9, letterSpacing: 3, color: "#5a1e1e", textTransform: "uppercase", marginTop: 8 }}>Guanajuato · Reservaciones</div>
         </div>
 
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Bienvenidos</div>
-        <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
+        {authMode === "login" && (
+          <>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Bienvenidos</div>
+            <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 32, textAlign: "center" }}>Ingresa tu PIN para continuar</div>
 
-        {/* Dots */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-          {[0,1,2,3].map(i => (
-            <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: pinInput.length > i ? "#7a3030" : "#b87878", border: `1px solid ${pinInput.length > i ? "#7a3030" : "#c08080"}`, transition: "background 0.15s" }} />
-          ))}
-        </div>
+            {/* Dots */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: pinInput.length > i ? "#7a3030" : "#b87878", border: `1px solid ${pinInput.length > i ? "#7a3030" : "#c08080"}`, transition: "background 0.15s" }} />
+              ))}
+            </div>
 
-        <input
-          type="password" inputMode="numeric" maxLength={4} value={pinInput}
-          onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
-          onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
-          placeholder="••••"
-          style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#c98e8e", border: `1px solid ${pinError ? "#8b1a1a" : "#b87878"}`, borderRadius: 12, padding: "14px", color: "#3d1010", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
-        />
-        {pinError && <div style={{ color: "#5a1e1e", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>PIN incorrecto</div>}
+            <input
+              type="password" inputMode="numeric" maxLength={4} value={pinInput}
+              onChange={e => { setPinInput(e.target.value.replace(/\D/g,"")); setPinError(false); }}
+              onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
+              placeholder="••••"
+              style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#c98e8e", border: `1px solid ${pinError ? "#8b1a1a" : "#b87878"}`, borderRadius: 12, padding: "14px", color: "#3d1010", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
+            />
+            {pinError && <div style={{ color: "#5a1e1e", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>PIN incorrecto</div>}
 
-        <button onClick={handlePinSubmit} disabled={pinLoading}
-          style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: pinLoading ? "default" : "pointer", boxShadow: "0 2px 10px #7a303044", opacity: pinLoading ? 0.7 : 1 }}>
-          {pinLoading ? "Entrando..." : "Entrar"}
-        </button>
+            <button onClick={handlePinSubmit} disabled={pinLoading}
+              style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: pinLoading ? "default" : "pointer", boxShadow: "0 2px 10px #7a303044", opacity: pinLoading ? 0.7 : 1 }}>
+              {pinLoading ? "Entrando..." : "Entrar"}
+            </button>
 
-        {/* Perfiles hint */}
-        <div style={{ marginTop: 40, display: "flex", gap: 16, opacity: 0.5 }}>
-          {["Staff","Supervisor","Admin"].map(p => (
-            <div key={p} style={{ fontSize: 10, color: "#5a1e1e", letterSpacing: 1, textTransform: "uppercase" }}>{p}</div>
-          ))}
-        </div>
+            <button onClick={() => setAuthMode("registro")} style={{ marginTop: 18, background: "none", border: "none", color: "#7a3030", fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 4 }}>
+              ¿Eres RP nuevo? Regístrate aquí
+            </button>
+
+            {/* Perfiles hint */}
+            <div style={{ marginTop: 30, display: "flex", gap: 16, opacity: 0.5 }}>
+              {["Staff","Supervisor","Admin"].map(p => (
+                <div key={p} style={{ fontSize: 10, color: "#5a1e1e", letterSpacing: 1, textTransform: "uppercase" }}>{p}</div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {authMode === "registro" && regStep === "codigo" && (
+          <>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Registro de RP</div>
+            <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 32, textAlign: "center", maxWidth: 260 }}>Pide el código de acceso al encargado para darte de alta</div>
+
+            <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: regCodigo.length > i ? "#7a3030" : "#b87878", border: `1px solid ${regCodigo.length > i ? "#7a3030" : "#c08080"}` }} />
+              ))}
+            </div>
+
+            <input
+              type="password" inputMode="numeric" maxLength={4} value={regCodigo}
+              onChange={e => { setRegCodigo(e.target.value.replace(/\D/g,"")); setRegCodigoError(false); }}
+              onKeyDown={e => e.key === "Enter" && handleRegCodigoSubmit()}
+              placeholder="••••"
+              style={{ width: "100%", maxWidth: 240, textAlign: "center", background: "#c98e8e", border: `1px solid ${regCodigoError ? "#8b1a1a" : "#b87878"}`, borderRadius: 12, padding: "14px", color: "#3d1010", fontSize: 24, letterSpacing: 10, outline: "none", marginBottom: 8 }}
+            />
+            {regCodigoError && <div style={{ color: "#5a1e1e", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>Código incorrecto</div>}
+
+            <button onClick={handleRegCodigoSubmit}
+              style={{ marginTop: 8, width: "100%", maxWidth: 240, padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px #7a303044" }}>
+              Continuar
+            </button>
+
+            <button onClick={volverALogin} style={{ marginTop: 18, background: "none", border: "none", color: "#7a3030", fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 4 }}>
+              ← Volver al login
+            </button>
+          </>
+        )}
+
+        {authMode === "registro" && regStep === "form" && (
+          <div style={{ width: "100%", maxWidth: 300 }}>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontStyle: "italic", color: "#3d1010", marginBottom: 6, textAlign: "center" }}>Tus datos</div>
+            <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 24, textAlign: "center" }}>Con esto generamos tu PIN individual</div>
+
+            <div style={{ marginBottom: 14, textAlign: "left" }}>
+              <label style={{ fontSize: 10, letterSpacing: 1, color: "#5a1e1e", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Nombre completo</label>
+              <input value={regForm.nombre} placeholder="Ej. Karla Sánchez"
+                onChange={e => { setRegForm(f => ({ ...f, nombre: e.target.value })); setRegErrors(err => ({ ...err, nombre: null })); }}
+                style={{ width: "100%", boxSizing: "border-box", background: "#c98e8e", border: `1px solid ${regErrors.nombre ? "#8b1a1a" : "#b87878"}`, borderRadius: 10, padding: "12px 14px", color: "#3d1010", fontSize: 14, outline: "none" }} />
+              {regErrors.nombre && <div style={{ color: "#5a1e1e", fontSize: 11, marginTop: 4 }}>{regErrors.nombre}</div>}
+            </div>
+
+            <div style={{ marginBottom: 22, textAlign: "left" }}>
+              <label style={{ fontSize: 10, letterSpacing: 1, color: "#5a1e1e", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Iniciales</label>
+              <input value={regForm.iniciales} placeholder="Ej. KS" maxLength={4}
+                onChange={e => { setRegForm(f => ({ ...f, iniciales: e.target.value.toUpperCase() })); setRegErrors(err => ({ ...err, iniciales: null })); }}
+                style={{ width: "100%", boxSizing: "border-box", background: "#c98e8e", border: `1px solid ${regErrors.iniciales ? "#8b1a1a" : "#b87878"}`, borderRadius: 10, padding: "12px 14px", color: "#3d1010", fontSize: 14, outline: "none" }} />
+              {regErrors.iniciales && <div style={{ color: "#5a1e1e", fontSize: 11, marginTop: 4 }}>{regErrors.iniciales}</div>}
+            </div>
+
+            <button onClick={handleRegistroSubmit} disabled={regLoading}
+              style={{ width: "100%", padding: "13px", background: regLoading ? "#8a5a5a" : "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: regLoading ? "default" : "pointer", boxShadow: "0 2px 10px #7a303044" }}>
+              {regLoading ? "Generando..." : "Generar mi PIN"}
+            </button>
+
+            <button onClick={volverALogin} style={{ marginTop: 16, width: "100%", background: "none", border: "none", color: "#7a3030", fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 4 }}>
+              ← Volver al login
+            </button>
+          </div>
+        )}
+
+        {authMode === "registro" && regStep === "listo" && (
+          <div style={{ width: "100%", maxWidth: 300 }}>
+            <div style={{ fontSize: 30, marginBottom: 10 }}>🎉</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 19, fontStyle: "italic", color: "#3d1010", marginBottom: 14 }}>¡Listo!</div>
+            <div style={{ fontSize: 12, color: "#7a3030", marginBottom: 18 }}>Este es tu PIN individual. Guárdalo, lo vas a necesitar cada vez que entres:</div>
+            <div style={{ background: "#c98e8e", border: "1px solid #b87878", borderRadius: 12, padding: "18px", fontSize: 30, letterSpacing: 10, fontWeight: 700, color: "#3d1010", marginBottom: 24 }}>
+              {regPinGenerado}
+            </div>
+            <button onClick={volverALogin}
+              style={{ width: "100%", padding: "13px", background: "#7a3030", color: "#fdf0f0", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px #7a303044" }}>
+              Ir a login
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -1330,10 +1563,10 @@ export default function App() {
               Guanajuato · Rvs
             </div>
             <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: PERFIL_COLOR[perfil], background: PERFIL_COLOR[perfil] + "22", border: "1px solid " + PERFIL_COLOR[perfil] + "66", borderRadius: 20, padding: "2px 10px" }}>
-                {PERFIL_LABEL[perfil]}
+              <div style={{ fontSize: 10, fontWeight: 600, color: currentRP ? "#7c6fff" : PERFIL_COLOR[perfil], background: (currentRP ? "#7c6fff" : PERFIL_COLOR[perfil]) + "22", border: "1px solid " + (currentRP ? "#7c6fff" : PERFIL_COLOR[perfil]) + "66", borderRadius: 20, padding: "2px 10px" }}>
+                {currentRP ? `💜 ${currentRP.nombre}` : PERFIL_LABEL[perfil]}
               </div>
-              <button onClick={() => { logoutRol().catch(() => {}); setPerfil(null); setPinInput(""); }} style={{ background: "none", border: "none", fontSize: 10, color: "#9a7878", cursor: "pointer", padding: 0 }}>Salir</button>
+              <button onClick={() => { logoutRol().catch(() => {}); setPerfil(null); setCurrentRP(null); setPinInput(""); }} style={{ background: "none", border: "none", fontSize: 10, color: "#9a7878", cursor: "pointer", padding: 0 }}>Salir</button>
             </div>
           </div>
         </div>
@@ -1342,7 +1575,16 @@ export default function App() {
         {tab === "lista" && view === "list" && (
           <div style={{ padding: "10px 20px 16px" }}>
             <button
-              onClick={() => { setView("form"); setErrors({}); }}
+              onClick={() => {
+                setEditingId(null);
+                setForm(f => ({
+                  ...f, fecha: getTodayLocal(), nombre: "", personas: "",
+                  iniciales: currentRP ? currentRP.iniciales : "",
+                  rol: currentRP ? "rp" : "", prioridad: null,
+                }));
+                setErrors({});
+                setView("form");
+              }}
               style={{
                 width: "100%", padding: "13px",
                 background: "#7a3030", color: "#fdf0f0",
@@ -1399,6 +1641,20 @@ export default function App() {
                   <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#9a7878", fontSize: 16, cursor: "pointer", padding: 4 }}>✕</button>
                 )}
               </div>
+
+              {/* Mis reservas / Todas — solo para RP con login individual */}
+              {currentRP && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                  <button onClick={() => setSoloMias(true)}
+                    style={{ flex: 1, padding: "8px", borderRadius: 10, border: `1px solid ${soloMias ? "#7c6fff" : "#3a2020"}`, background: soloMias ? "#7c6fff22" : "#1e1210", color: soloMias ? "#7c6fff" : "#9a7878", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                    Mis reservas
+                  </button>
+                  <button onClick={() => setSoloMias(false)}
+                    style={{ flex: 1, padding: "8px", borderRadius: 10, border: `1px solid ${!soloMias ? "#7c6fff" : "#3a2020"}`, background: !soloMias ? "#7c6fff22" : "#1e1210", color: !soloMias ? "#7c6fff" : "#9a7878", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                    Todas
+                  </button>
+                </div>
+              )}
 
               {/* Filtros por día */}
               {(() => {
@@ -1564,8 +1820,8 @@ export default function App() {
           {/* FORM */}
           {view === "form" && (
             <div style={{ padding: "18px 16px" }}>
-              <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: "#a07878", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 20 }}>← Volver</button>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 22 }}>Nueva Reservación</div>
+              <button onClick={() => { setEditingId(null); setView("list"); }} style={{ background: "none", border: "none", color: "#a07878", fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 20 }}>← Volver</button>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 22 }}>{editingId ? "Editar Reservación" : "Nueva Reservación"}</div>
               {[
                 { label: "Fecha", key: "fecha", type: "date" },
                 { label: "Nombre del cliente", key: "nombre", type: "text", placeholder: "Ej. Mesa Martínez" },
@@ -1575,26 +1831,36 @@ export default function App() {
                 <div key={field.key} style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: 10, letterSpacing: 1, color: "#a07878", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{field.label}</label>
                   <input type={field.type} value={form[field.key]} placeholder={field.placeholder}
+                    disabled={field.key === "iniciales" && !!currentRP}
                     onChange={e => { setForm(f => ({ ...f, [field.key]: e.target.value })); setErrors(err => ({ ...err, [field.key]: null })); }}
-                    style={{ width: "100%", boxSizing: "border-box", background: "#1e1210", border: `1px solid ${errors[field.key] ? "#c94c4c" : "#3a2020"}`, borderRadius: 10, padding: "12px 15px", color: "#f5e8e0", fontSize: 15, outline: "none" }} />
+                    style={{ width: "100%", boxSizing: "border-box", background: field.key === "iniciales" && currentRP ? "#171010" : "#1e1210", border: `1px solid ${errors[field.key] ? "#c94c4c" : "#3a2020"}`, borderRadius: 10, padding: "12px 15px", color: field.key === "iniciales" && currentRP ? "#8a7070" : "#f5e8e0", fontSize: 15, outline: "none" }} />
                   {errors[field.key] && <div style={{ color: "#c94c4c", fontSize: 11, marginTop: 3 }}>{errors[field.key]}</div>}
                 </div>
               ))}
-              <div style={{ marginBottom: 26 }}>
-                <label style={{ fontSize: 10, letterSpacing: 1, color: "#a07878", textTransform: "uppercase", display: "block", marginBottom: 10 }}>Registrado por</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
-                  {ROLES.map(r => {
-                    const active = form.rol === r.id;
-                    return (
-                      <button key={r.id} onClick={() => { setForm(f => ({ ...f, rol: r.id })); setErrors(err => ({ ...err, rol: null })); }}
-                        style={{ flex: "1 1 calc(50% - 5px)", padding: "13px 6px", borderRadius: 12, border: `1.5px solid ${active ? r.color : "#3a2020"}`, background: active ? r.color + "22" : "#1e1210", color: active ? r.color : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                        {r.label}
-                      </button>
-                    );
-                  })}
+              {currentRP ? (
+                <div style={{ marginBottom: 26 }}>
+                  <label style={{ fontSize: 10, letterSpacing: 1, color: "#a07878", textTransform: "uppercase", display: "block", marginBottom: 10 }}>Registrado por</label>
+                  <div style={{ padding: "13px 6px", borderRadius: 12, border: "1.5px solid #7c6fff", background: "#7c6fff22", color: "#7c6fff", fontSize: 13, fontWeight: 700, textAlign: "center" }}>
+                    Team Canta · {currentRP.nombre}
+                  </div>
                 </div>
-                {errors.rol && <div style={{ color: "#c94c4c", fontSize: 11, marginTop: 5 }}>{errors.rol}</div>}
-              </div>
+              ) : (
+                <div style={{ marginBottom: 26 }}>
+                  <label style={{ fontSize: 10, letterSpacing: 1, color: "#a07878", textTransform: "uppercase", display: "block", marginBottom: 10 }}>Registrado por</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+                    {ROLES.map(r => {
+                      const active = form.rol === r.id;
+                      return (
+                        <button key={r.id} onClick={() => { setForm(f => ({ ...f, rol: r.id })); setErrors(err => ({ ...err, rol: null })); }}
+                          style={{ flex: "1 1 calc(50% - 5px)", padding: "13px 6px", borderRadius: 12, border: `1.5px solid ${active ? r.color : "#3a2020"}`, background: active ? r.color + "22" : "#1e1210", color: active ? r.color : "#555", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                          {r.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {errors.rol && <div style={{ color: "#c94c4c", fontSize: 11, marginTop: 5 }}>{errors.rol}</div>}
+                </div>
+              )}
               {puede.marcarVip && (
                 <div style={{ marginBottom: 26 }}>
                   <label style={{ fontSize: 10, letterSpacing: 1, color: "#a07878", textTransform: "uppercase", display: "block", marginBottom: 10 }}>Prioridad (opcional)</label>
@@ -1620,7 +1886,7 @@ export default function App() {
                 </div>
               )}
               <button onClick={handleSubmit} disabled={saving} style={{ width: "100%", padding: "15px", background: saving ? "#5a4a1a" : "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
-                {saving ? "Guardando..." : "Guardar Reservación"}
+                {saving ? "Guardando..." : editingId ? "Actualizar Reservación" : "Guardar Reservación"}
               </button>
             </div>
           )}
@@ -1650,6 +1916,7 @@ export default function App() {
                       { icon: "📅", label: "Fecha", val: formatDateFull(r.fecha) },
                       { icon: "👥", label: "Personas", val: r.personas },
                       { icon: "✍️", label: "Registrado por", val: r.iniciales },
+                      { icon: "🕒", label: "Registrado el", val: r.createdAt ? new Date(r.createdAt).toLocaleString("es-MX", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—" },
                       ...(puede.checkAsistencia ? [{ icon: r.llego ? "✅" : "⏳", label: "Asistencia", val: r.llego ? "Llegó" : "Pendiente" }] : []),
                       ...(pc ? [{ icon: pc.icon, label: "Prioridad", val: pc.label }] : []),
                     ].map(item => (
@@ -1673,8 +1940,14 @@ export default function App() {
                     })}
                   </div>
                 )}
-                {puede.eliminar && (
-                  <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r.id, r.iniciales); }}
+                {canModify(r) && (
+                  <button onClick={() => startEdit(r)}
+                    style={{ width: "100%", padding: "13px", background: "transparent", color: "#7c6fff", border: "1px solid #7c6fff44", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 10 }}>
+                    Editar reservación
+                  </button>
+                )}
+                {canModify(r) && (
+                  <button onClick={() => { if (window.confirm("¿Eliminar esta reservación?")) handleDelete(r); }}
                     style={{ width: "100%", padding: "13px", background: "transparent", color: "#c94c4c", border: "1px solid #c94c4c44", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                     Eliminar reservación
                   </button>
