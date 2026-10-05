@@ -9,9 +9,11 @@ import {
   subscribeMapa,
   loginConRol,
   logoutRol,
-  saveRP,
+  registrarRP,
+  getRPByPin,
   getRPs,
 } from "./firebase.js";
+import { generarRankingRP } from "./rankingRP.js";
 
 const ROLES = [
   { id: "socio", label: "Socio", color: "#c9a84c" },
@@ -654,6 +656,44 @@ export default function App() {
   const [tab, setTab] = useState("lista");
   const [copied, setCopied] = useState(false);
 
+  // ── Gráfica "Reservas por RP" ────────────────────────────────
+  const [ranking, setRanking] = useState(null); // { url, blob, nombre }
+  const [generandoRanking, setGenerandoRanking] = useState(false);
+
+  async function handleRankingRP(rep) {
+    setGenerandoRanking(true);
+    try {
+      let rps = [];
+      try { rps = await getRPs(); } catch { /* sin nombres: usa iniciales */ }
+      const res = await generarRankingRP(rep, rps);
+      setRanking(res);
+    } catch (e) {
+      console.error(e);
+      showToast("No se pudo generar la gráfica", "error");
+    }
+    setGenerandoRanking(false);
+  }
+
+  function cerrarRanking() {
+    if (ranking) URL.revokeObjectURL(ranking.url);
+    setRanking(null);
+  }
+
+  function descargarRanking() {
+    const a = document.createElement("a");
+    a.href = ranking.url; a.download = ranking.nombre; a.click();
+    showToast("Imagen descargada ✓");
+  }
+
+  async function compartirRanking() {
+    const file = new File([ranking.blob], ranking.nombre, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "Reservas por RP" }); } catch { /* cancelado */ }
+    } else {
+      descargarRanking();
+    }
+  }
+
   // ── Estado de mesas (Firebase tiempo real) ───────────────────
   const MESAS_P1_DEFAULT = [
     80,81,82,83,77,76,75,74,73,72,71,70,66,65,64,63,62,61,60,
@@ -888,8 +928,7 @@ export default function App() {
     setPinLoading(true);
     try {
       await loginConRol("staff");
-      const rps = await getRPs();
-      const rp = rps.find(x => x.pin === pinInput);
+      const rp = await getRPByPin(pinInput);
       if (!rp) {
         await logoutRol().catch(() => {});
         setPinError(true);
@@ -921,14 +960,6 @@ export default function App() {
     }
   }
 
-  function generarPinUnico(pinesExistentes) {
-    let pin;
-    do {
-      pin = String(Math.floor(1000 + Math.random() * 9000));
-    } while (Object.keys(PERFILES).includes(pin) || pin === CODIGO_REGISTRO_RP || pinesExistentes.includes(pin));
-    return pin;
-  }
-
   async function handleRegistroSubmit() {
     const e = {};
     if (!regForm.nombre.trim()) e.nombre = "Requerido";
@@ -937,25 +968,24 @@ export default function App() {
     setRegLoading(true);
     try {
       await loginConRol("staff");
-      const rps = await getRPs();
       const inicialesNorm = regForm.iniciales.trim().toUpperCase();
+      const rps = await getRPs();
       const yaExiste = rps.find(x => x.iniciales === inicialesNorm);
       if (yaExiste) {
         setRegErrors({ iniciales: "Ya hay un RP registrado con esas iniciales" });
         setRegLoading(false);
         return;
       }
-      const pin = generarPinUnico(rps.map(x => x.pin));
-      const nuevoRP = {
-        id: Date.now().toString(),
+      // El PIN se reserva de forma atómica en Firestore (ver registrarRP en
+      // firebase.js): aunque dos RPs se registren al mismo tiempo, nunca
+      // pueden terminar con el mismo PIN.
+      const nuevoRP = await registrarRP({
         nombre: regForm.nombre.trim(),
         iniciales: inicialesNorm,
-        pin,
-        createdAt: new Date().toISOString(),
-      };
-      await saveRP(nuevoRP);
+        pinesReservados: [...Object.keys(PERFILES), CODIGO_REGISTRO_RP],
+      });
       await logoutRol().catch(() => {});
-      setRegPinGenerado(pin);
+      setRegPinGenerado(nuevoRP.pin);
       setRegErrors({});
       setRegStep("listo");
     } catch {
@@ -1609,6 +1639,22 @@ export default function App() {
         </div>
       )}
 
+      {/* Vista previa de la gráfica "Reservas por RP" */}
+      {ranking && (
+        <div onClick={cerrarRanking} style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 1000, display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 12px 24px" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 10, maxHeight: "100%" }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={compartirRanking} style={{ flex: 1, padding: "12px", background: "#c9a84c", color: "#1a0a0a", border: "none", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>📤 Compartir</button>
+              <button onClick={descargarRanking} style={{ flex: 1, padding: "12px", background: "#1e1210", color: "#f5e8e0", border: "1px solid #3a2020", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>⬇️ Descargar</button>
+              <button onClick={cerrarRanking} style={{ padding: "12px 16px", background: "#1e1210", color: "#9a7878", border: "1px solid #3a2020", borderRadius: 12, fontSize: 13, cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ overflowY: "auto", borderRadius: 12 }}>
+              <img src={ranking.url} alt="Reservas por RP" style={{ width: "100%", display: "block", borderRadius: 12 }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── TAB LISTA ── */}
       {tab === "lista" && (
         <>
@@ -2062,9 +2108,13 @@ export default function App() {
                     Descargar imagen
                   </button>
                 </div>
-                <button onClick={() => handleDownloadExcel(rep)} style={{ width: "100%", padding: "12px 10px", background: "#12241a", border: "1px solid #2a5a3a", borderRadius: 12, color: "#7ecfa0", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 22 }}>
+                <button onClick={() => handleDownloadExcel(rep)} style={{ width: "100%", padding: "12px 10px", background: "#12241a", border: "1px solid #2a5a3a", borderRadius: 12, color: "#7ecfa0", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 10 }}>
                   <span style={{ fontSize: 16 }}>📗</span>
                   Descargar Excel (.xlsx)
+                </button>
+                <button onClick={() => handleRankingRP(rep)} disabled={generandoRanking} style={{ width: "100%", padding: "12px 10px", background: "#241a2a", border: "1px solid #7c6fff66", borderRadius: 12, color: "#b8b0ff", fontSize: 13, fontWeight: 600, cursor: generandoRanking ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 22, opacity: generandoRanking ? 0.7 : 1 }}>
+                  <span style={{ fontSize: 16 }}>🏆</span>
+                  {generandoRanking ? "Generando gráfica..." : "Gráfica por RP (nombres y asistencia)"}
                 </button>
                 {(() => {
                   const registradas = rep.totalRegistradas || rep.totalReservas;
