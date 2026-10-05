@@ -9,8 +9,7 @@ import {
   subscribeMapa,
   loginConRol,
   logoutRol,
-  registrarRP,
-  getRPByPin,
+  saveRP,
   getRPs,
 } from "./firebase.js";
 import { generarRankingRP } from "./rankingRP.js";
@@ -928,7 +927,8 @@ export default function App() {
     setPinLoading(true);
     try {
       await loginConRol("staff");
-      const rp = await getRPByPin(pinInput);
+      const rps = await getRPs();
+      const rp = rps.find(x => x.pin === pinInput);
       if (!rp) {
         await logoutRol().catch(() => {});
         setPinError(true);
@@ -960,6 +960,14 @@ export default function App() {
     }
   }
 
+  function generarPinUnico(pinesExistentes) {
+    let pin;
+    do {
+      pin = String(Math.floor(1000 + Math.random() * 9000));
+    } while (Object.keys(PERFILES).includes(pin) || pin === CODIGO_REGISTRO_RP || pinesExistentes.includes(pin));
+    return pin;
+  }
+
   async function handleRegistroSubmit() {
     const e = {};
     if (!regForm.nombre.trim()) e.nombre = "Requerido";
@@ -968,24 +976,25 @@ export default function App() {
     setRegLoading(true);
     try {
       await loginConRol("staff");
-      const inicialesNorm = regForm.iniciales.trim().toUpperCase();
       const rps = await getRPs();
+      const inicialesNorm = regForm.iniciales.trim().toUpperCase();
       const yaExiste = rps.find(x => x.iniciales === inicialesNorm);
       if (yaExiste) {
         setRegErrors({ iniciales: "Ya hay un RP registrado con esas iniciales" });
         setRegLoading(false);
         return;
       }
-      // El PIN se reserva de forma atómica en Firestore (ver registrarRP en
-      // firebase.js): aunque dos RPs se registren al mismo tiempo, nunca
-      // pueden terminar con el mismo PIN.
-      const nuevoRP = await registrarRP({
+      const pin = generarPinUnico(rps.map(x => x.pin));
+      const nuevoRP = {
+        id: Date.now().toString(),
         nombre: regForm.nombre.trim(),
         iniciales: inicialesNorm,
-        pinesReservados: [...Object.keys(PERFILES), CODIGO_REGISTRO_RP],
-      });
+        pin,
+        createdAt: new Date().toISOString(),
+      };
+      await saveRP(nuevoRP);
       await logoutRol().catch(() => {});
-      setRegPinGenerado(nuevoRP.pin);
+      setRegPinGenerado(pin);
       setRegErrors({});
       setRegStep("listo");
     } catch {
